@@ -24,7 +24,6 @@ import {
   Menu as MenuIcon,
   Dashboard as DashboardIcon,
   Timeline as TimelineIcon,
-  EmojiEvents as ChampionsIcon,
   Person as PersonIcon,
   Logout as LogoutIcon,
   Refresh as RefreshIcon,

@@ -52,7 +52,6 @@ const ChampionsPage: React.FC = () => {
         .split(' ')
         .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
         .join(' ');
-      console.log(`Searching for champion: ${formattedChampion}`);
       setSelectedChampion(formattedChampion);
     }
   };

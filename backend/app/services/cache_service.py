@@ -1,6 +1,9 @@
 ﻿import json
 from typing import Any, Optional
 from app.utils.database import get_redis
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CacheService:
@@ -19,7 +22,7 @@ class CacheService:
                 return json.loads(value)
             return None
         except Exception as e:
-            print(f"Cache get error: {e}")
+            logger.error(f"Cache get error: {e}")
             return None
     
     def set(self, key: str, value: Any, ttl: int = 3600) -> bool:
@@ -31,7 +34,7 @@ class CacheService:
             serialized_value = json.dumps(value)
             return self.redis_client.setex(key, ttl, serialized_value)
         except Exception as e:
-            print(f"Cache set error: {e}")
+            logger.error(f"Cache set error: {e}")
             return False
     
     def delete(self, key: str) -> bool:
@@ -42,7 +45,7 @@ class CacheService:
         try:
             return bool(self.redis_client.delete(key))
         except Exception as e:
-            print(f"Cache delete error: {e}")
+            logger.error(f"Cache delete error: {e}")
             return False
     
     def get_or_set(self, key: str, func, ttl: int = 3600) -> Any:
@@ -67,7 +70,7 @@ class CacheService:
             if keys:
                 self.redis_client.delete(*keys)
         except Exception as e:
-            print(f"Cache clear error: {e}")
+            logger.error(f"Cache clear error: {e}")
 
 
 # Global instance

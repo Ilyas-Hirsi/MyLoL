@@ -4,16 +4,24 @@ from contextlib import asynccontextmanager
 from app.utils.database import init_db
 from app.api import auth, users, matchups, champions
 from config.settings import settings
+import logging
+
+_debug_enabled = str(settings.DEBUG).strip().lower() in ("1", "true", "yes", "on")
+logging.basicConfig(
+    level=logging.DEBUG if _debug_enabled else logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    print(" Starting League Analytics API...")
+    logger.info("Starting League Analytics API...")
     init_db()
     yield
     # Shutdown
-    print(" Shutting down League Analytics API...")
+    logger.info("Shutting down League Analytics API...")
 
 
 app = FastAPI(

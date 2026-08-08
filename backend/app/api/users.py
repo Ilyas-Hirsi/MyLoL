@@ -12,6 +12,9 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 from typing import Optional
 from app.services.champion_data import champion_data
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -44,7 +47,7 @@ async def get_user_profile(current_user: str = Depends(get_current_user), db: Se
             last_updated=user.last_updated.isoformat() if user.last_updated else None
         )
     except Exception as e:
-        print(f"Profile error: {e}")
+        logger.error(f"Profile error: {e}")
         raise HTTPException(status_code=500, detail=f"Profile fetch failed: {str(e)}")
 
 @router.get("/match-history")
@@ -55,7 +58,7 @@ async def get_match_history(
     limit: int = 200
 ):
     """Get user's match history from Riot API and database with caching"""
-    print(f"🔍 DEBUG: Match history endpoint called for user {current_user}")
+    logger.debug(f"Match history endpoint called for user {current_user}")
     
     try:
         user = db.query(User).filter(User.id == int(current_user)).first()
@@ -66,7 +69,7 @@ async def get_match_history(
         cache_key = f"match_history:{user.id}:{game_mode or 'all'}:{limit}"
         cached_data = cache.get(cache_key)
         if cached_data:
-            print(f"🔍 DEBUG: Returning {len(cached_data)} matches from cache")
+            logger.debug(f"Returning {len(cached_data)} matches from cache")
             return cached_data
         
         # Query matches from database first
@@ -108,7 +111,7 @@ async def get_match_history(
             Match.game_creation >= datetime.utcnow() - timedelta(hours=24)
         ).first()
         
-        print(f"🔍 DEBUG: Found {len(formatted_matches)} matches in database. Recent match? {recent_match is not None}")
+        logger.debug(f"Found {len(formatted_matches)} matches in database. Recent match? {recent_match is not None}")
         
         # Only fetch new data if we don't have recent data
         if not recent_match:
@@ -117,10 +120,10 @@ async def get_match_history(
             
             if has_any_matches:
                 # Fetch only new matches from Riot API (will stop at first existing match)
-                print(f"🔍 DEBUG: Fetching new matches from Riot API for user {user.puuid}")
+                logger.debug(f"Fetching new matches from Riot API for user {user.puuid}")
             else:
                 # First time fetching - get fresh data
-                print(f"🔍 DEBUG: First time fetch - getting fresh match data from Riot API for user {user.puuid}")
+                logger.debug(f"First time fetch - getting fresh match data from Riot API for user {user.puuid}")
             
             # Fetch new matches and add them to the database
             await _fetch_and_store_matches(db, user)
@@ -158,17 +161,17 @@ async def get_match_history(
         # Cache the result for 1 hour
         cache.set(cache_key, formatted_matches, ttl=3600)
         
-        print(f"🔍 DEBUG: Returning {len(formatted_matches)} matches from database")
+        logger.debug(f"Returning {len(formatted_matches)} matches from database")
         return formatted_matches
         
     except Exception as e:
-        print(f"🔍 ERROR: Match history error: {e}")
+        logger.error(f"Match history error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch match history: {str(e)}")
 
 @router.get("/champion-mastery")
 async def get_champion_mastery(current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get user's champion mastery data from Riot API and database with caching"""
-    print(f"🔍 DEBUG: Champion mastery endpoint called for user {current_user}")
+    logger.debug(f"Champion mastery endpoint called for user {current_user}")
     
     try:
         user = db.query(User).filter(User.id == int(current_user)).first()
@@ -179,7 +182,7 @@ async def get_champion_mastery(current_user: str = Depends(get_current_user), db
         cache_key = f"champion_mastery:{user.id}"
         cached_data = cache.get(cache_key)
         if cached_data:
-            print(f"🔍 DEBUG: Returning {len(cached_data)} masteries from cache")
+            logger.debug(f"Returning {len(cached_data)} masteries from cache")
             return cached_data
         
         # Query mastery from database first
@@ -193,11 +196,11 @@ async def get_champion_mastery(current_user: str = Depends(get_current_user), db
             ChampionMastery.last_updated >= datetime.utcnow() - timedelta(hours=48)
         ).first()
         
-        print(f"🔍 DEBUG: Found {len(mastery)} masteries in database. Recent mastery? {recent_mastery is not None}")
+        logger.debug(f"Found {len(mastery)} masteries in database. Recent mastery? {recent_mastery is not None}")
         
         if not recent_mastery:
             # Fetch fresh data from Riot API
-            print(f"🔍 DEBUG: Fetching fresh mastery data from Riot API for user {user.puuid}")
+            logger.debug(f"Fetching fresh mastery data from Riot API for user {user.puuid}")
             await _fetch_and_store_mastery(db, user)
             
             # Re-query to get the updated mastery data
@@ -219,11 +222,11 @@ async def get_champion_mastery(current_user: str = Depends(get_current_user), db
         # Cache the result for 2 hours
         cache.set(cache_key, formatted_mastery, ttl=7200)
         
-        print(f"🔍 DEBUG: Returning {len(formatted_mastery)} champion masteries from database")
+        logger.debug(f"Returning {len(formatted_mastery)} champion masteries from database")
         return formatted_mastery
         
     except Exception as e:
-        print(f"🔍 ERROR: Champion mastery error: {e}")
+        logger.error(f"Champion mastery error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch champion mastery: {str(e)}")
 
 @router.post("/refresh-data")
@@ -233,7 +236,7 @@ async def refresh_user_data(
     db: Session = Depends(get_db)
 ):
     """Force refresh user data from Riot API"""
-    print(f"🔍 DEBUG: Refresh data endpoint called for user {current_user}")
+    logger.debug(f"Refresh data endpoint called for user {current_user}")
     
     try:
         user = db.query(User).filter(User.id == int(current_user)).first()
@@ -262,7 +265,7 @@ async def refresh_user_data(
         }
         
     except Exception as e:
-        print(f"🔍 ERROR: Refresh data error: {e}")
+        logger.error(f"Refresh data error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to refresh user data: {str(e)}")
 
 # Helper functions for fetching and storing data
@@ -278,10 +281,10 @@ async def _fetch_and_store_matches(db: Session, user: User):
         match_ids = riot_api.get_match_history(user.puuid, count=batch_size, start=0)
         
         if not match_ids:
-            print(f"🔍 DEBUG: No matches found for user {user.puuid}")
+            logger.debug(f"No matches found for user {user.puuid}")
             return
         
-        print(f"🔍 DEBUG: Checking {len(match_ids)} match IDs for existing matches...")
+        logger.debug(f"Checking {len(match_ids)} match IDs for existing matches...")
         
         # Get all existing match IDs in one query (much faster!)
         existing_match_ids = set(
@@ -293,7 +296,7 @@ async def _fetch_and_store_matches(db: Session, user: User):
         new_match_ids = []
         for match_id in match_ids:
             if match_id in existing_match_ids:
-                print(f"🔍 DEBUG: Found existing match {match_id}. Will not fetch more.")
+                logger.debug(f"Found existing match {match_id}. Will not fetch more.")
                 found_existing = True
                 break
             new_match_ids.append(match_id)
@@ -349,10 +352,10 @@ async def _fetch_and_store_matches(db: Session, user: User):
             matches_added += 1
         
         db.commit()
-        print(f"🔍 DEBUG: Successfully stored {matches_added} new matches for user {user.puuid}")
+        logger.debug(f"Successfully stored {matches_added} new matches for user {user.puuid}")
         
     except Exception as e:
-        print(f"🔍 ERROR: Failed to fetch and store matches: {e}")
+        logger.error(f"Failed to fetch and store matches: {e}")
         db.rollback()
 
 async def _fetch_and_store_mastery(db: Session, user: User):
@@ -360,7 +363,7 @@ async def _fetch_and_store_mastery(db: Session, user: User):
     try:
         # Get mastery data from Riot API
         mastery_data = riot_api.get_champion_mastery(user.puuid)
-        print(f"🔍 DEBUG: Found {len(mastery_data)} champion masteries")
+        logger.debug(f"Found {len(mastery_data)} champion masteries")
         
         for champ_data in mastery_data:
             # Check if mastery already exists
@@ -387,10 +390,10 @@ async def _fetch_and_store_mastery(db: Session, user: User):
                 db.add(mastery_record)
         
         db.commit()
-        print(f"🔍 DEBUG: Successfully stored mastery data for user {user.puuid}")
+        logger.debug(f"Successfully stored mastery data for user {user.puuid}")
         
     except Exception as e:
-        print(f"🔍 ERROR: Failed to fetch and store mastery: {e}")
+        logger.error(f"Failed to fetch and store mastery: {e}")
         db.rollback()
 
 def _get_opponent_champion(match_data: dict, player_data: dict) -> Optional[str]:

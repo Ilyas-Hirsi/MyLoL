@@ -7,6 +7,9 @@ from app.models.user import User
 from app.utils.auth import get_current_user
 from app.services.champion_recommender import champion_recommender
 from app.services.matchup_analyzer import matchup_analyzer
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/champions", tags=["champions"])
 
@@ -52,7 +55,7 @@ async def get_champion_recommendations(
         }
         
     except Exception as e:
-        print(f"🔍 ERROR: Champion recommendations error: {e}")
+        logger.error(f"Champion recommendations error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get champion recommendations: {str(e)}")
 
 

@@ -3,6 +3,9 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from typing import Generator
 from config.settings import settings
 import redis
+import logging
+
+logger = logging.getLogger(__name__)
 # PostgreSQL Database Setup
 engine = create_engine(
     settings.DATABASE_URL,
@@ -26,9 +29,9 @@ try:
         decode_responses=True
     )
     redis_client.ping()
-    print(" Connected to Redis")
+    logger.info("Connected to Redis")
 except Exception as e:
-    print(f" Redis connection failed (caching disabled): {e}")
+    logger.warning(f"Redis connection failed (caching disabled): {e}")
     redis_client = None
 
 
@@ -44,7 +47,7 @@ def get_db() -> Generator:
 def init_db():
     """Initialize database tables"""
     Base.metadata.create_all(bind=engine)
-    print(" Database tables created")
+    logger.info("Database tables created")
 
 
 def get_redis():

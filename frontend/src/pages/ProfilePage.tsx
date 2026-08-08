@@ -15,12 +15,10 @@ import {
 } from '@mui/material';
 import {
   Refresh as RefreshIcon,
-  Person as PersonIcon,
-  Timeline as TimelineIcon,
   EmojiEvents as TrophyIcon,
 } from '@mui/icons-material';
 import { useUserProfile, useMatchHistory, useChampionMastery, useRefreshUserData } from '../hooks/useApi';
-import { formatNumber, formatWinRate, formatKDA, getMasteryLevelColor, formatHMSFromMinutes } from '../utils/helpers';
+import { formatNumber, formatKDA, getMasteryLevelColor, formatHMSFromMinutes } from '../utils/helpers';
 
 const ProfilePage: React.FC = () => {
   const { data: user, isLoading: userLoading, error: userError } = useUserProfile();
@@ -270,7 +268,7 @@ const ProfilePage: React.FC = () => {
                 Recent Matches
               </Typography>
               <Grid container spacing={1}>
-                {matches?.slice(0, 10).map((match, index) => (
+                {matches?.slice(0, 10).map((match) => (
                   <Grid item xs={12} sm={6} md={4} lg={2.4} key={match.match_id}>
                     <Paper sx={{ p: 1.5, bgcolor: 'background.default' }}>
                       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>

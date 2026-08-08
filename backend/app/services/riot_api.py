@@ -2,6 +2,9 @@
 import time
 from typing import List, Dict, Optional
 from config.settings import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class RiotAPIService:
@@ -51,27 +54,23 @@ class RiotAPIService:
             response = requests.get(url, headers=headers, params=params)
             
             if response.status_code == 200:
-                print(response.status_code)
                 return response.json()
             if response.status_code == 209:
-                print(response.status_code)
                 return response.json()
             elif response.status_code == 404:
-                print(response.status_code)
                 return None
             elif response.status_code == 403:
-                print(" Forbidden: Check API key, rate limits, or permissions.")
-                print(response.status_code)
+                logger.error("Forbidden: check API key, rate limits, or permissions.")
                 return None
             elif response.status_code == 429:
-                print(" Rate limit exceeded, waiting...")
+                logger.warning("Rate limit exceeded, waiting...")
                 time.sleep(60)  # Wait 1 minute for rate limit reset
                 return self._make_request(url, params)
             else:
-                print(f" API Error: {response.status_code} - {response.text}")
+                logger.error(f"API error: {response.status_code} - {response.text}")
                 return None
         except Exception as e:
-            print(f" Request failed: {e}")
+            logger.error(f"Request failed: {e}")
             return None
     
     def get_puuid(self, riot_id: str, tag: str) -> Optional[str]:
@@ -81,7 +80,7 @@ class RiotAPIService:
         if data:
             return data.get("puuid")
         else:
-            print("Api call failed (Getting PUUID)")
+            logger.error("API call failed (getting PUUID)")
             return None
     
     def get_summoner_by_puuid(self, puuid: str) -> Optional[Dict]:
