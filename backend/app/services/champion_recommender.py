@@ -1,106 +1,161 @@
-﻿from typing import List, Dict
+from typing import List, Dict, Optional
+from collections import defaultdict
 from sqlalchemy.orm import Session
 from app.models.champion_mastery import ChampionMastery
-from app.services.riot_api import riot_api
 from app.services.cache_service import cache
+from app.services import personal_stats
 from config.settings import settings
 
 
 class ChampionRecommender:
     def __init__(self):
         self.cache_ttl = settings.CACHE_MATCHUP_DATA_TTL
-    
-    def get_champion_recommendations(self, db: Session, user_id: int, difficult_matchups: List[str], role: str = None, game_mode: str | None = None) -> List[Dict]:
-        """Get champion recommendations based on difficult matchups"""
-        cache_key = f"user:{user_id}:recommendations:{role or 'all'}:{game_mode or 'all'}:{hash(tuple(difficult_matchups))}"
-        
+
+    def get_champion_recommendations(
+        self,
+        db: Session,
+        user_id: int,
+        difficult_matchups: List[str],
+        role: str = None,
+        game_mode: str | None = None,
+    ) -> List[Dict]:
+        """Recommend champions from the user's own pool for their hard matchups.
+
+        For each champion the user plays, we look at their real win rate (from
+        match history) against the opponents they currently struggle with, and
+        surface the champions that actually perform best. No web scraping and no
+        simulated numbers - everything comes from the user's games.
+        """
+        normalized_role = self._normalize_role(role)
+        normalized_mode = (game_mode or "").strip() or None
+        cache_key = (
+            f"user:{user_id}:recommendations:{normalized_role or 'all'}:"
+            f"{normalized_mode or 'all'}:{hash(tuple(sorted(difficult_matchups)))}"
+        )
+
         def _get_recommendations():
-            # Get user's champion mastery from database
-            query = db.query(ChampionMastery).filter(ChampionMastery.user_id == user_id)
-            mastery_data = query.all()
-            
-            if not mastery_data:
+            # Mastery gives us the champion pool plus points/level for display.
+            mastery_data = db.query(ChampionMastery).filter(
+                ChampionMastery.user_id == user_id
+            ).all()
+            mastery_by_name = {m.champion_name: m for m in mastery_data}
+
+            # One grouped query: (champion, opponent) -> (games, wins).
+            grid = personal_stats.matchup_grid(
+                db, user_id, normalized_role, normalized_mode
+            )
+            if not grid:
                 return []
-            
-            # Filter by role if specified (this would need champion role data)
-            if role:
-                # For now, we'll include all champions
-                pass
-            
+
+            difficult_set = set(difficult_matchups)
+
+            # Aggregate per champion: overall record and record vs hard matchups.
+            overall = defaultdict(lambda: [0, 0])          # champ -> [games, wins]
+            vs_difficult = defaultdict(lambda: [0, 0])     # champ -> [games, wins]
+            beaten = defaultdict(list)                      # champ -> [opponents]
+            for (champ, opp), (games, wins) in grid.items():
+                overall[champ][0] += games
+                overall[champ][1] += wins
+                if opp in difficult_set:
+                    vs_difficult[champ][0] += games
+                    vs_difficult[champ][1] += wins
+                    if wins / games >= 0.5:
+                        beaten[champ].append(opp)
+
             recommendations = []
-            
-            for mastery in mastery_data[:20]:  # Top 20 champions by mastery
-                recommendation = self._analyze_champion_vs_matchups(
-                    mastery.champion_name, difficult_matchups, mastery, role
-                )
-                if recommendation:
-                    recommendations.append(recommendation)
-            
-            # Sort by counter effectiveness
-            recommendations.sort(key=lambda x: x['counter_win_rate'], reverse=True)
-            return recommendations[:5] 
-        
+            for champ, (games, wins) in overall.items():
+                if games < 3:  # need a real sample to say anything useful
+                    continue
+
+                d_games, d_wins = vs_difficult[champ]
+                has_direct = d_games > 0
+                if has_direct:
+                    counter_win_rate = round(d_wins / d_games * 100, 1)
+                    reason = (
+                        f"You win {counter_win_rate}% on {champ} across "
+                        f"{d_games} game{'s' if d_games != 1 else ''} vs your "
+                        f"difficult matchups"
+                    )
+                else:
+                    counter_win_rate = round(wins / games * 100, 1)
+                    reason = (
+                        f"Your overall win rate on {champ} is "
+                        f"{counter_win_rate}% ({games} games)"
+                    )
+
+                mastery = mastery_by_name.get(champ)
+                recommendations.append({
+                    "champion": champ,
+                    "mastery_points": mastery.champion_points if mastery else 0,
+                    "mastery_level": mastery.champion_level if mastery else 0,
+                    "counter_win_rate": counter_win_rate,
+                    "games_vs_opponents": d_games,
+                    "counters": sorted(beaten[champ])[:5],
+                    "reason": reason,
+                    # Internal sort hint: prefer direct evidence at equal win rate.
+                    "_has_direct": has_direct,
+                })
+
+            # Only recommend champions the user actually wins on. If none clear
+            # 50% (e.g. a rough stretch), fall back to their best available so
+            # the list is never empty.
+            winners = [r for r in recommendations if r["counter_win_rate"] >= 50]
+            pool = winners if winners else recommendations
+
+            # Best win rate first; direct head-to-head data breaks ties.
+            pool.sort(
+                key=lambda x: (x["counter_win_rate"], x["_has_direct"]),
+                reverse=True,
+            )
+            for rec in pool:
+                rec.pop("_has_direct", None)
+            return pool[:5]
+
         return cache.get_or_set(cache_key, _get_recommendations, self.cache_ttl)
-    
-    def _analyze_champion_vs_matchups(self, champion: str, difficult_matchups: List[str], mastery: ChampionMastery, role: str | None) -> Dict:
-        """Analyze how well a champion counters difficult matchups"""
-        if not difficult_matchups:
-            return None
-            
-        total_win_rate = 0
-        matchup_count = 0
-        counters = []
-        
-        # Simulate win rate based on mastery and assume moderate counter ability
-        # This avoids slow web scraping calls that block the entire request
-        for opponent in difficult_matchups:
-            # Use mastery as a proxy for champion strength
-            # Higher mastery = better counter ability
-            base_win_rate = 50.0
-            
-            # Adjust based on mastery level
-            if mastery.champion_level >= 6:
-                win_rate = 52.0 + (mastery.champion_points / 100000) * 5  # Scale with points
-            elif mastery.champion_level >= 5:
-                win_rate = 51.0
-            else:
-                win_rate = 50.0
-            
-            # Assume this champion counters at least some matchups if mastery is high
-            if win_rate >= 50:
-                total_win_rate += win_rate
-                matchup_count += 1
-                counters.append(opponent)
-        
-        # Only recommend champions that have sufficient mastery
-        if matchup_count == 0 or mastery.champion_points < 10000:
-            return None
-        
-        avg_win_rate = total_win_rate / matchup_count if matchup_count > 0 else 50.0
-        
-        return {
-            'champion': champion,
-            'mastery_points': mastery.champion_points,
-            'mastery_level': mastery.champion_level,
-            'counter_win_rate': round(avg_win_rate, 1),
-            'games_vs_opponents': matchup_count,
-            'counters': counters[:5],  # Limit to 5 counters for display
-            'reason': f"Strong against {len(counters)} of your {len(difficult_matchups)} difficult matchups"
-        }
-    
-    def get_champion_counters(self, champion: str) -> List[Dict]:
-        """Get champions that counter a specific champion (using scraper)."""
-        cache_key = f"counters:{champion}"
+
+    def get_champion_counters(
+        self,
+        db: Session,
+        user_id: int,
+        champion: str,
+        role: str | None = None,
+        game_mode: str | None = None,
+    ) -> List[Dict]:
+        """Personal counters: which of the user's champions beat `champion`.
+
+        Derived from the user's match history, so it reflects what has actually
+        worked for them rather than a global meta average.
+        """
+        normalized_role = self._normalize_role(role)
+        normalized_mode = (game_mode or "").strip() or None
+        cache_key = (
+            f"user:{user_id}:counters:{champion}:"
+            f"{normalized_role or 'all'}:{normalized_mode or 'all'}"
+        )
 
         def _get_counters():
-            try:
-                from app.services.scraper import get_champion_counters as scrape_counters
-                data = scrape_counters(champion)
-                return data or []
-            except Exception:
-                return []
+            return personal_stats.champions_vs_opponent(
+                db, user_id, champion, normalized_role, normalized_mode
+            )
 
         return cache.get_or_set(cache_key, _get_counters, self.cache_ttl)
+
+    def _normalize_role(self, role: Optional[str]) -> Optional[str]:
+        """Convert UI role names to Riot's teamPosition format."""
+        if not role:
+            return None
+        role_mapping = {
+            "TOP": "TOP",
+            "JUNGLE": "JUNGLE",
+            "MID": "MIDDLE",
+            "MIDDLE": "MIDDLE",
+            "ADC": "BOTTOM",
+            "BOT": "BOTTOM",
+            "BOTTOM": "BOTTOM",
+            "SUPPORT": "UTILITY",
+            "UTILITY": "UTILITY",
+        }
+        return role_mapping.get(role.strip().upper(), role.strip().upper())
 
 
 # Global instance

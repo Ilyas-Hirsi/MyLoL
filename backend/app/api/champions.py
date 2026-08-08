@@ -1,12 +1,12 @@
 ﻿from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from typing import Optional
-import json
 from app.utils.database import get_db
 from app.models.user import User
 from app.utils.auth import get_current_user
 from app.services.champion_recommender import champion_recommender
 from app.services.matchup_analyzer import matchup_analyzer
+from app.services import personal_stats
 import logging
 
 logger = logging.getLogger(__name__)
@@ -62,80 +62,80 @@ async def get_champion_recommendations(
 @router.get("/counters/{champion_name}")
 async def get_champion_counters(
     champion_name: str,
-    current_user: str = Depends(get_current_user)
+    role: Optional[str] = Query(None, description="Filter by role"),
+    game_mode: Optional[str] = Query(None, description="Filter by game mode"),
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
-    """Get champions that counter a specific champion"""
-    counters = champion_recommender.get_champion_counters(champion_name)
-    
-    return {
-        "champion": champion_name,
-        "counters": counters
-    }
+    """Personal counters: which of the user's champions beat this opponent.
+
+    Ranked by the user's own win rate against `champion_name`.
+    """
+    try:
+        user = db.query(User).filter(User.id == int(current_user)).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        counters = champion_recommender.get_champion_counters(
+            db, user.id, champion_name, role, game_mode
+        )
+        return {
+            "champion": champion_name,
+            "counters": counters
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Champion counters error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get champion counters: {str(e)}")
 
 
 @router.get("/stats/{champion_name}")
 async def get_champion_stats(
     champion_name: str,
+    role: Optional[str] = Query(None, description="Filter by role"),
+    game_mode: Optional[str] = Query(None, description="Filter by game mode"),
     current_user: str = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get comprehensive champion stats from u.gg scraper"""
+    """The user's personal stats for a champion, from their match history.
+
+    `win_rate` and `pick_rate` are personal (the user's own games); there is no
+    global meta data here. `strong_against` / `weak_against` are the opponents
+    they beat and lose to most while playing this champion.
+    """
     try:
-        from app.utils.redis_client import redis_client
-        
-        cache_key = f"champion_stats:{champion_name.lower()}"
-        cached_data = redis_client.get(cache_key)
-        
-        if cached_data:
-            data = json.loads(cached_data)
-            if data.get('win_rate') == 50.0 and data.get('pick_rate') == 0.0:
-                redis_client.delete(cache_key)
-            else:
-                return data
-        
-        from app.services.scraper import get_champion_data
-        champion_data = get_champion_data(champion_name)
-        
-        if champion_data:
-            result = {
-                "champion": champion_name,
-                "win_rate": round(champion_data.get('win_rate', 50.0), 2),
-                "pick_rate": round(champion_data.get('pick_rate', 0.0), 2),
-                "ban_rate": round(champion_data.get('ban_rate', 0.0), 2),
-                "counters": champion_data.get('counters', []),
-                "strong_against": champion_data.get('strong_against', []),
-                "weak_against": champion_data.get('weak_against', [])
-            }
-            
-            redis_client.setex(cache_key, 86400, json.dumps(result))
-            return result
-        else:
-            # Fallback to basic counter data
-            from app.services.scraper import get_champion_counters
-            counters = get_champion_counters(champion_name)
-            
-            result = {
-                "champion": champion_name,
-                "win_rate": 50.0,
-                "pick_rate": 0.0,
-                "ban_rate": 0.0,
-                "counters": counters if counters else [],
-                "strong_against": [],
-                "weak_against": []
-            }
-            
-            # Even cache the fallback (with shorter TTL - 1 hour)
-            if counters:
-                redis_client.setex(cache_key, 3600, json.dumps(result))
-            
-            return result
-    except Exception as e:
+        user = db.query(User).filter(User.id == int(current_user)).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        normalized_role = personal_stats.normalize_role(role)
+        normalized_mode = (game_mode or "").strip() or None
+
+        summary = personal_stats.champion_summary(
+            db, user.id, champion_name, normalized_role, normalized_mode
+        )
+        faced = personal_stats.opponents_faced_on_champion(
+            db, user.id, champion_name, normalized_role, normalized_mode
+        )
+        favorable = [m for m in faced if m["win_rate"] >= 50]
+        unfavorable = [m for m in faced if m["win_rate"] < 50]
+
         return {
             "champion": champion_name,
-            "win_rate": 50.0,
-            "pick_rate": 0.0,
-            "ban_rate": 0.0,
-            "counters": [],
-            "strong_against": [],
-            "weak_against": []
+            "games": summary["games"],
+            "win_rate": summary["win_rate"],
+            "pick_rate": summary["pick_rate"],
+            "ban_rate": 0.0,  # no personal analogue for ban rate
+            "avg_kda": summary["avg_kda"],
+            "avg_cs_per_min": summary["avg_cs_per_min"],
+            "avg_damage_per_min": summary["avg_damage_per_min"],
+            "counters": favorable[:5],
+            "strong_against": favorable[:5],
+            "weak_against": list(reversed(unfavorable[-5:])),
         }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Champion stats error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get champion stats: {str(e)}")
