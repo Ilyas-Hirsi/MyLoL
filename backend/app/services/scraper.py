@@ -2,6 +2,9 @@ import requests
 from bs4 import BeautifulSoup as bs
 import json
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 def get_champion_data(champion_name: str, role: str | None = None):
     """
@@ -190,18 +193,18 @@ def extract_champion_info_from_json(data, champion_name):
     # Extract counters from weak_against
     champion_data['counters'] = champion_data['weak_against']
     
-    print(f"[JSON] Extracted champion data: WR={champion_data['win_rate']}, PR={champion_data['pick_rate']}, BR={champion_data['ban_rate']}")
+    logger.debug(f"[JSON] Extracted champion data: WR={champion_data['win_rate']}, PR={champion_data['pick_rate']}, BR={champion_data['ban_rate']}")
     
     return champion_data
 
 def extract_stats_from_various_methods(soup, champion_name):
     """Try multiple methods to extract stats from HTML"""
-    print("[SCRAPER] Trying alternative extraction methods...")
+    logger.debug("[SCRAPER] Trying alternative extraction methods...")
     
     # Method 1: Look for data attributes
     data_elements = soup.find_all(attrs={"data-win-rate": True}) + soup.find_all(attrs={"data-pick-rate": True})
     if data_elements:
-        print(f"[SCRAPER] Found {len(data_elements)} data attributes")
+        logger.debug(f"[SCRAPER] Found {len(data_elements)} data attributes")
     
     # Method 2: Look for specific text patterns in the page
     page_text = soup.get_text()
@@ -212,7 +215,7 @@ def extract_stats_from_various_methods(soup, champion_name):
         try:
             win_rate = float(win_rate_matches[0])
             if 30 <= win_rate <= 70:
-                print(f"[SCRAPER] Found win rate via text search: {win_rate}%")
+                logger.debug(f"[SCRAPER] Found win rate via text search: {win_rate}%")
                 return create_champion_data(champion_name, win_rate, None, None)
         except:
             pass
@@ -223,7 +226,7 @@ def extract_stats_from_various_methods(soup, champion_name):
         try:
             rate = float(win_patterns[0])
             if 40 <= rate <= 60:
-                print(f"[SCRAPER] Found potential win rate: {rate}%")
+                logger.debug(f"[SCRAPER] Found potential win rate: {rate}%")
                 return create_champion_data(champion_name, rate, None, None)
         except:
             pass
@@ -330,7 +333,7 @@ def get_champion_counters(champion_name: str, role: str | None = None):
     }
     r = requests.get(url, headers=headers, timeout=20)
     if r.status_code != 200:
-        print("HTTP error:", r.status_code)
+        logger.warning(f"HTTP error: {r.status_code}")
         return []
 
     soup = bs(r.text, "html.parser")

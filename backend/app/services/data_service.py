@@ -7,6 +7,9 @@ from app.models.champion_mastery import ChampionMastery
 from app.services.riot_api import riot_api
 from app.services.cache_service import cache
 from config.settings import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DataService:
     def __init__(self):
@@ -124,7 +127,7 @@ class DataService:
             return match_obj
             
         except Exception as e:
-            print(f"Error processing match {match_id}: {e}")
+            logger.error(f"Error processing match {match_id}: {e}")
             return None
     
     def _get_game_mode(self, queue_id: int) -> str:

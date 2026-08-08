@@ -31,15 +31,6 @@ const DashboardPage: React.FC = () => {
 
   const isLoading = userLoading || matchesLoading || masteryLoading || matchupsLoading || recommendationsLoading;
 
-  // Debug logging
-  console.log('🔍 Dashboard Debug:', {
-    user: { data: user, loading: userLoading, error: userError },
-    matches: { data: matches, loading: matchesLoading, error: matchesError },
-    mastery: { data: mastery, loading: masteryLoading, error: masteryError },
-    matchups: { data: difficultMatchups, loading: matchupsLoading, error: matchupsError },
-    recommendations: { data: recommendations, loading: recommendationsLoading, error: recommendationsError }
-  });
-
   if (isLoading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">

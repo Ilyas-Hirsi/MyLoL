@@ -5,6 +5,9 @@ from app.utils.database import get_db
 from app.models.user import User
 from app.utils.auth import get_current_user
 from app.services.matchup_analyzer import matchup_analyzer
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/matchups", tags=["matchups"])
 
@@ -50,7 +53,7 @@ async def get_difficult_matchups(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"🔍 ERROR: Difficult matchups error: {e}")
+        logger.error(f"Difficult matchups error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to analyze difficult matchups: {str(e)}")
 
 
@@ -112,5 +115,5 @@ async def get_matchup_details(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"🔍 ERROR: Matchup details error: {e}")
+        logger.error(f"Matchup details error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get matchup details: {str(e)}")
