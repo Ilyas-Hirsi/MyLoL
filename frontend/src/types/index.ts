@@ -144,6 +144,13 @@ export interface MatchupDetails {
   avg_game_duration_min: number;
   role_distribution: Record<string, number>;
   game_mode_distribution: Record<string, number>;
+  best_champions: Array<{
+    champion: string;
+    games: number;
+    wins: number;
+    losses: number;
+    win_rate: number;
+  }>;
   recent_matches: Array<{
     match_id: string;
     date: string | null;

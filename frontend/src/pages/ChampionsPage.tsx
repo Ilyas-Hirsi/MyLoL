@@ -479,7 +479,7 @@ const ChampionsPage: React.FC = () => {
                         </Typography>
                       </Avatar>
                       <Typography variant="h5" sx={{ fontWeight: 'bold' }}>
-                        u.gg Analysis: {selectedChampion}
+                        Your Stats: {selectedChampion}
                       </Typography>
                     </Box>
                     <Button
@@ -517,7 +517,7 @@ const ChampionsPage: React.FC = () => {
                           }}>
                             <CardContent sx={{ p: 3 }}>
                               <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
-                                General Stats from u.gg
+                                Your Performance
                               </Typography>
                               <Stack spacing={2}>
                                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -560,7 +560,7 @@ const ChampionsPage: React.FC = () => {
                           }}>
                             <CardContent sx={{ p: 3 }}>
                               <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
-                                u.gg Data
+                                Your Matchups
                               </Typography>
                               
                               {/* Difficult Matchups - Champions this champion struggles against */}
