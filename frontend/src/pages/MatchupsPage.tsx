@@ -7,7 +7,7 @@ import {
   TableRow, Paper, Button, Dialog,
   DialogTitle, DialogContent, Divider,
 } from '@mui/material';
-import { useDifficultMatchupsFull, useChampionMatchupData, useMatchupDetails } from '../hooks/useApi';
+import { useDifficultMatchupsFull, useMatchupDetails } from '../hooks/useApi';
 import { formatWinRate, formatKDA, getDifficultyColor } from '../utils/helpers';
 
 const MatchupsPage: React.FC = () => {
@@ -18,11 +18,10 @@ const MatchupsPage: React.FC = () => {
   const [selectedGameMode, setSelectedGameMode] = useState<string>('');
 
   // API hooks
-  const { data: difficultMatchupsResponse, isLoading: matchupsLoading, error: matchupsError } = 
+  const { data: difficultMatchupsResponse, isLoading: matchupsLoading, error: matchupsError } =
     useDifficultMatchupsFull(selectedRole, selectedGameMode);
-  useChampionMatchupData(selectedChampion, '');
 
-  const { data: matchupDetails, isLoading: detailsLoading } = 
+  const { data: matchupDetails, isLoading: detailsLoading } =
     useMatchupDetails(selectedChampion, selectedRole || undefined, selectedGameMode || undefined);
 
   // Extract matchups data
@@ -286,6 +285,44 @@ const MatchupsPage: React.FC = () => {
                     </Box>
                   </Grid>
                 </Grid>
+
+                <Divider />
+                <Typography variant="subtitle1">
+                  Your Best Champions vs {selectedChampion}
+                </Typography>
+                {matchupDetails.best_champions && matchupDetails.best_champions.length > 0 ? (
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {matchupDetails.best_champions.map((champ) => (
+                      <Paper
+                        key={champ.champion}
+                        sx={{
+                          p: 1.5,
+                          bgcolor: 'background.default',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          minWidth: 120,
+                        }}
+                      >
+                        <Typography variant="subtitle2" fontWeight="bold">
+                          {champ.champion}
+                        </Typography>
+                        <Chip
+                          label={`${champ.win_rate}%`}
+                          size="small"
+                          sx={{ my: 0.5, bgcolor: getDifficultyColor(champ.win_rate), color: 'white' }}
+                        />
+                        <Typography variant="caption" color="text.secondary">
+                          {champ.wins}W / {champ.losses}L
+                        </Typography>
+                      </Paper>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Not enough games on other champions against {selectedChampion} yet.
+                  </Typography>
+                )}
 
                 <Divider />
                 <Typography variant="subtitle1">Recent Match History</Typography>
