@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import Integer
 from app.models.match import Match
 from app.services.cache_service import cache
+from app.services import personal_stats
 from config.settings import settings
 
 
@@ -142,6 +143,7 @@ class MatchupAnalyzer:
                     'avg_game_duration_min': 0.0,
                     'role_distribution': {},
                     'game_mode_distribution': {},
+                    'best_champions': [],
                     'recent_matches': []
                 }
 
@@ -203,6 +205,11 @@ class MatchupAnalyzer:
                 'avg_game_duration_min': round(totals['game_duration_min'] / total_games, 1),
                 'role_distribution': role_dist,
                 'game_mode_distribution': mode_dist,
+                # Which of the user's champions perform best into this opponent -
+                # i.e. what they should consider picking next time.
+                'best_champions': personal_stats.champions_vs_opponent(
+                    db, user_id, opponent_champion, normalized_role, normalized_mode
+                ),
                 'recent_matches': recent,
             }
 
@@ -210,33 +217,44 @@ class MatchupAnalyzer:
 
 
     
-    def get_champion_matchup_data(self, champion: str, opponent: str) -> Dict:
-        """Fetch matchup data between two champions from u.gg.
-        
-        Returns win rate and confidence level based on sample size.
+    def get_champion_matchup_data(
+        self, db: Session, user_id: int, champion: str, opponent: str,
+        role: str | None = None, game_mode: str | None = None,
+    ) -> Dict:
+        """The user's head-to-head record playing `champion` into `opponent`.
+
+        Computed from the user's own match history. Confidence scales with how
+        many games back the number.
         """
-        cache_key = f"matchup:{champion}:{opponent}"
-        
+        normalized_role = self._normalize_role(role) if role else None
+        normalized_mode = (game_mode or '').strip() or None
+        cache_key = (
+            f"user:{user_id}:matchup:{champion}:{opponent}:"
+            f"{normalized_role or 'all'}:{normalized_mode or 'all'}"
+        )
+
         def _get_matchup():
-            try:
-                from app.services.scraper import get_champion_counters
-                counters = get_champion_counters(champion)
-                
-                # Find the specific opponent in counter data
-                for counter in counters:
-                    if counter.get('champion', '').lower() == opponent.lower():
-                        games = counter.get('games', 0)
-                        return {
-                            'champion': champion,
-                            'opponent': opponent,
-                            'win_rate': counter.get('win_rate', 0),
-                            'games_analyzed': games,
-                            'confidence': 'high' if games > 100 else 'medium'
-                        }
-            except Exception:
-                pass
-            return None
-        
+            games, wins = personal_stats.matchup_grid(
+                db, user_id, normalized_role, normalized_mode
+            ).get((champion, opponent), (0, 0))
+
+            if games == 0:
+                confidence = 'none'
+            elif games >= 10:
+                confidence = 'high'
+            elif games >= 4:
+                confidence = 'medium'
+            else:
+                confidence = 'low'
+
+            return {
+                'champion': champion,
+                'opponent': opponent,
+                'win_rate': round(wins / games * 100, 1) if games else 0.0,
+                'games_analyzed': games,
+                'confidence': confidence,
+            }
+
         return cache.get_or_set(cache_key, _get_matchup, self.cache_ttl)
 
 

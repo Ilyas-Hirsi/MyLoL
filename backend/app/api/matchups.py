@@ -5,6 +5,7 @@ from app.utils.database import get_db
 from app.models.user import User
 from app.utils.auth import get_current_user
 from app.services.matchup_analyzer import matchup_analyzer
+from app.services import personal_stats
 import logging
 
 logger = logging.getLogger(__name__)
@@ -60,40 +61,60 @@ async def get_difficult_matchups(
 @router.get("/champion/{champion_name}")
 async def get_champion_matchup_data(
     champion_name: str,
-    current_user: str = Depends(get_current_user)
+    role: Optional[str] = Query(None, description="Filter by role"),
+    game_mode: Optional[str] = Query(None, description="Filter by game mode"),
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
-    """Get general matchup data for a specific champion.
-    
-    Returns strong/weak matchups based on u.gg data.
+    """The user's strong and weak matchups while playing this champion.
+
+    Derived from the user's own match history - the opponents they beat most
+    and least often when they lock in `champion_name`.
     """
-    # TODO: Replace with real u.gg scraper data
-    return {
-        "champion": champion_name,
-        "strong_against": [
-            {"champion": "WeakChamp1", "win_rate": 65.2},
-            {"champion": "WeakChamp2", "win_rate": 62.8}
-        ],
-        "weak_against": [
-            {"champion": "StrongChamp1", "win_rate": 35.1},
-            {"champion": "StrongChamp2", "win_rate": 38.9}
-        ]
-    }
+    try:
+        user = _get_user_with_validation(db, current_user)
+        normalized_role = personal_stats.normalize_role(role)
+        normalized_mode = (game_mode or "").strip() or None
+        faced = personal_stats.opponents_faced_on_champion(
+            db, user.id, champion_name, normalized_role, normalized_mode
+        )
+        return {
+            "champion": champion_name,
+            "strong_against": [m for m in faced if m["win_rate"] >= 50][:5],
+            "weak_against": [m for m in faced if m["win_rate"] < 50][-5:],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Champion matchup data error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get champion matchup data: {str(e)}")
 
 
 @router.get("/vs/{champion1}/{champion2}")
 async def get_head_to_head_matchup(
     champion1: str,
     champion2: str,
-    current_user: str = Depends(get_current_user)
+    role: Optional[str] = Query(None, description="Filter by role"),
+    game_mode: Optional[str] = Query(None, description="Filter by game mode"),
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
 ):
-    """Get detailed head-to-head matchup data between two champions."""
-    matchup_data = matchup_analyzer.get_champion_matchup_data(champion1, champion2)
-    
-    return {
-        "champion1": champion1,
-        "champion2": champion2,
-        "matchup_data": matchup_data
-    }
+    """The user's head-to-head record playing champion1 into champion2."""
+    try:
+        user = _get_user_with_validation(db, current_user)
+        matchup_data = matchup_analyzer.get_champion_matchup_data(
+            db, user.id, champion1, champion2, role, game_mode
+        )
+        return {
+            "champion1": champion1,
+            "champion2": champion2,
+            "matchup_data": matchup_data
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Head-to-head matchup error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get matchup data: {str(e)}")
 
 
 @router.get("/details/{opponent}")
