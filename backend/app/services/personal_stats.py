@@ -5,12 +5,33 @@ Match-V5 data the app already ingests) - there is no web scraping and no
 fabricated data. When a user has no games matching a query, the caller gets
 an empty result rather than a made-up one.
 """
+from math import sqrt
 from typing import Dict, List, Optional, Tuple
 from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import Integer, func
 
 from app.models.match import Match
+
+# z-score for a 95% confidence interval, used by the Wilson score below.
+_WILSON_Z = 1.96
+
+
+def wilson_lower_bound(wins: int, games: int, z: float = _WILSON_Z) -> float:
+    """Lower bound of the Wilson score interval for a win rate, as a percentage.
+
+    A raw win rate treats 2/2 (100%) as better than 40/60 (67%), which is
+    misleading on tiny samples. The Wilson lower bound discounts a win rate by
+    how little data backs it, so a champion needs both a good record *and*
+    enough games to rank highly. Returns 0.0 when there are no games.
+    """
+    if games <= 0:
+        return 0.0
+    phat = wins / games
+    denom = 1 + z * z / games
+    centre = phat + z * z / (2 * games)
+    margin = z * sqrt((phat * (1 - phat) + z * z / (4 * games)) / games)
+    return round(max(0.0, (centre - margin) / denom) * 100, 1)
 
 _ROLE_MAP = {
     "TOP": "TOP",
@@ -111,9 +132,14 @@ def champions_vs_opponent(
             "wins": wins,
             "losses": games - wins,
             "win_rate": round(wins / games * 100, 1),
+            "confidence": wilson_lower_bound(wins, games),
         })
-    # Best win rate first; break ties by the larger sample size.
-    result.sort(key=lambda x: (x["win_rate"], x["games"]), reverse=True)
+    # Rank by the confidence-adjusted win rate so a 2-0 record doesn't leapfrog
+    # a proven one; fall back to raw win rate, then sample size, for ties.
+    result.sort(
+        key=lambda x: (x["confidence"], x["win_rate"], x["games"]),
+        reverse=True,
+    )
     return result
 
 
@@ -153,8 +179,12 @@ def opponents_faced_on_champion(
             "wins": wins,
             "losses": games - wins,
             "win_rate": round(wins / games * 100, 1),
+            "confidence": wilson_lower_bound(wins, games),
         })
-    result.sort(key=lambda x: (x["win_rate"], x["games"]), reverse=True)
+    result.sort(
+        key=lambda x: (x["confidence"], x["win_rate"], x["games"]),
+        reverse=True,
+    )
     return result
 
 
