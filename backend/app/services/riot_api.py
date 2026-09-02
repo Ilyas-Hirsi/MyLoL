@@ -1,5 +1,7 @@
 ﻿import requests
 import time
+import threading
+from collections import deque
 from typing import List, Dict, Optional
 from config.settings import settings
 import logging
@@ -14,36 +16,33 @@ class RiotAPIService:
         self.account_region = settings.RIOT_API_ACCOUNT_REGION
         self.base_url = f"https://{self.region}.api.riotgames.com"
         self.account_url = f"https://{self.account_region}.api.riotgames.com"
-        self.rate_limit_per_second = settings.RIOT_API_RATE_LIMIT_PER_SECOND
-        self.rate_limit_per_two_minutes = settings.RIOT_API_RATE_LIMIT_PER_TWO_MINUTES
-        self.last_request_time = 0
-        self.request_count = 0
-        self.two_minute_window_start = time.time()
-    
+        # Sliding-window rate limiter: at most `rate_limit` requests per
+        # `rate_window` seconds. With a raised app key (e.g. 2000/10s) this
+        # lets a full 1000-match back-fill run without artificial throttling.
+        self.rate_limit = settings.RIOT_API_RATE_LIMIT
+        self.rate_window = settings.RIOT_API_RATE_WINDOW_SECONDS
+        self._request_times: deque = deque()
+        self._rate_lock = threading.Lock()
+
     def _rate_limit(self):
-        """Implement rate limiting for Riot API"""
-        current_time = time.time()
-        
-        # Reset two-minute window if needed
-        if current_time - self.two_minute_window_start >= 120:
-            self.two_minute_window_start = current_time
-            self.request_count = 0
-        
-        # Check two-minute limit
-        if self.request_count >= self.rate_limit_per_two_minutes:
-            sleep_time = 120 - (current_time - self.two_minute_window_start)
-            if sleep_time > 0:
-                time.sleep(sleep_time)
-                self.two_minute_window_start = time.time()
-                self.request_count = 0
-        
-        # Check per-second limit
-        time_since_last = current_time - self.last_request_time
-        if time_since_last < (1.0 / self.rate_limit_per_second):
-            time.sleep((1.0 / self.rate_limit_per_second) - time_since_last)
-        
-        self.last_request_time = time.time()
-        self.request_count += 1
+        """Throttle to stay within `rate_limit` requests per `rate_window` seconds."""
+        with self._rate_lock:
+            now = time.time()
+            # Drop timestamps that have aged out of the current window.
+            while self._request_times and now - self._request_times[0] >= self.rate_window:
+                self._request_times.popleft()
+
+            # If the window is full, sleep until the oldest request expires.
+            if len(self._request_times) >= self.rate_limit:
+                sleep_for = self.rate_window - (now - self._request_times[0])
+                if sleep_for > 0:
+                    logger.debug(f"Rate limit reached, sleeping {sleep_for:.2f}s")
+                    time.sleep(sleep_for)
+                now = time.time()
+                while self._request_times and now - self._request_times[0] >= self.rate_window:
+                    self._request_times.popleft()
+
+            self._request_times.append(time.time())
     
     def _make_request(self, url: str, params: Dict = None) -> Optional[Dict]:
         """Make a rate-limited request to Riot API"""
@@ -99,6 +98,15 @@ class RiotAPIService:
     def get_match_details(self, match_id: str) -> Optional[Dict]:
         """Get detailed match information"""
         url = f"{self.account_url}/lol/match/v5/matches/{match_id}"
+        return self._make_request(url)
+
+    def get_match_timeline(self, match_id: str) -> Optional[Dict]:
+        """Get the per-minute timeline (frames) for a match.
+
+        This is a second call per match on top of get_match_details, so it is
+        only worth fetching when the raised rate limit can absorb it.
+        """
+        url = f"{self.account_url}/lol/match/v5/matches/{match_id}/timeline"
         return self._make_request(url)
     
     def get_champion_mastery(self, puuid: str) -> List[Dict]:
