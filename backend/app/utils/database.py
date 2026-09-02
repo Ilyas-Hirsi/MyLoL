@@ -1,4 +1,4 @@
-﻿from sqlalchemy import create_engine, MetaData
+﻿from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from typing import Generator
 from config.settings import settings

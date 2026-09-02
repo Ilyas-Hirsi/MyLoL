@@ -1,5 +1,4 @@
 ﻿from typing import List, Dict
-from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import Integer
 from app.models.match import Match

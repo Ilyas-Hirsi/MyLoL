@@ -1,30 +1,18 @@
-"""Personal statistics derived from the user's own match history.
-
-Every function here computes stats from the `matches` table (real Riot
-Match-V5 data the app already ingests) - there is no web scraping and no
-fabricated data. When a user has no games matching a query, the caller gets
-an empty result rather than a made-up one.
-"""
+"""Personal statistics computed from the user's own ingested match data."""
 from math import sqrt
 from typing import Dict, List, Optional, Tuple
-from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import Integer, func
 
 from app.models.match import Match
+from app.models.match_timeline import MatchTimeline
 
 # z-score for a 95% confidence interval, used by the Wilson score below.
 _WILSON_Z = 1.96
 
 
 def wilson_lower_bound(wins: int, games: int, z: float = _WILSON_Z) -> float:
-    """Lower bound of the Wilson score interval for a win rate, as a percentage.
-
-    A raw win rate treats 2/2 (100%) as better than 40/60 (67%), which is
-    misleading on tiny samples. The Wilson lower bound discounts a win rate by
-    how little data backs it, so a champion needs both a good record *and*
-    enough games to rank highly. Returns 0.0 when there are no games.
-    """
+    """Wilson lower-bound win rate (%), discounting small samples; 0.0 for no games."""
     if games <= 0:
         return 0.0
     phat = wins / games
@@ -134,8 +122,7 @@ def champions_vs_opponent(
             "win_rate": round(wins / games * 100, 1),
             "confidence": wilson_lower_bound(wins, games),
         })
-    # Rank by the confidence-adjusted win rate so a 2-0 record doesn't leapfrog
-    # a proven one; fall back to raw win rate, then sample size, for ties.
+    # Rank by confidence-adjusted win rate, then raw win rate, then sample size.
     result.sort(
         key=lambda x: (x["confidence"], x["win_rate"], x["games"]),
         reverse=True,
@@ -237,4 +224,84 @@ def champion_summary(
         },
         "avg_cs_per_min": round(row.avg_cs_per_min or 0, 1),
         "avg_damage_per_min": round(row.avg_damage_per_min or 0, 0),
+    }
+
+
+def _average_series(series_list: List[List], max_len: int) -> List[float]:
+    """Per-index average across sequences, up to max_len (only games reaching that index)."""
+    sums: List[float] = []
+    counts: List[int] = []
+    for series in series_list:
+        if not series:
+            continue
+        for i, value in enumerate(series):
+            if i >= max_len:
+                break
+            if i >= len(sums):
+                sums.append(0.0)
+                counts.append(0)
+            sums[i] += value
+            counts[i] += 1
+    return [round(sums[i] / counts[i], 1) for i in range(len(sums)) if counts[i]]
+
+
+def _average_checkpoint(values: List[Optional[int]]) -> Optional[float]:
+    """Average a checkpoint metric, ignoring games that ended before it."""
+    present = [v for v in values if v is not None]
+    if not present:
+        return None
+    return round(sum(present) / len(present), 1)
+
+
+def lane_timeline_vs_opponent(
+    db: Session,
+    user_id: int,
+    opponent: str,
+    role: Optional[str] = None,
+    min_games: int = 1,
+    max_minutes: int = 20,
+) -> Dict:
+    """Averaged per-minute CS/gold-diff series and @10/@15 checkpoints vs `opponent`."""
+    query = db.query(MatchTimeline).filter(
+        MatchTimeline.user_id == user_id,
+        MatchTimeline.opponent_champion == opponent,
+    )
+    if role:
+        query = query.filter(MatchTimeline.team_position == role)
+    rows = query.all()
+
+    empty = {
+        "opponent": opponent,
+        "games": len(rows),
+        "cs_series": [],
+        "opponent_cs_series": [],
+        "cs_diff_series": [],
+        "gold_diff_series": [],
+        "avg_cs_diff_at_10": None,
+        "avg_cs_diff_at_15": None,
+        "avg_gold_diff_at_10": None,
+        "avg_gold_diff_at_15": None,
+    }
+    if len(rows) < min_games:
+        return empty
+
+    cs_avg = _average_series([r.cs_series for r in rows], max_minutes)
+    opp_cs_avg = _average_series([r.opponent_cs_series for r in rows], max_minutes)
+    gold_diff_avg = _average_series([r.gold_diff_series for r in rows], max_minutes)
+
+    # CS lead per minute over the range both averaged series cover.
+    paired = min(len(cs_avg), len(opp_cs_avg))
+    cs_diff_series = [round(cs_avg[i] - opp_cs_avg[i], 1) for i in range(paired)]
+
+    return {
+        "opponent": opponent,
+        "games": len(rows),
+        "cs_series": cs_avg,
+        "opponent_cs_series": opp_cs_avg,
+        "cs_diff_series": cs_diff_series,
+        "gold_diff_series": gold_diff_avg,
+        "avg_cs_diff_at_10": _average_checkpoint([r.cs_diff_at_10 for r in rows]),
+        "avg_cs_diff_at_15": _average_checkpoint([r.cs_diff_at_15 for r in rows]),
+        "avg_gold_diff_at_10": _average_checkpoint([r.gold_diff_at_10 for r in rows]),
+        "avg_gold_diff_at_15": _average_checkpoint([r.gold_diff_at_15 for r in rows]),
     }

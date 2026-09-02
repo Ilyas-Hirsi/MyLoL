@@ -37,9 +37,12 @@ class Settings(BaseSettings):
     CACHE_CHAMPION_MASTERY_TTL: int = 7200
     CACHE_MATCHUP_DATA_TTL: int = 86400
     
-    # Rate Limiting
-    RIOT_API_RATE_LIMIT_PER_SECOND: int = 20
-    RIOT_API_RATE_LIMIT_PER_TWO_MINUTES: int = 100
+    # Rate limiting: RIOT_API_RATE_LIMIT requests per RIOT_API_RATE_WINDOW_SECONDS
+    RIOT_API_RATE_LIMIT: int = 2000
+    RIOT_API_RATE_WINDOW_SECONDS: float = 10.0
+
+    MATCH_HISTORY_MAX: int = 1000       # matches to back-fill on a full refresh
+    FETCH_MATCH_TIMELINE: bool = True   # fetch per-minute timeline (extra call per match)
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -50,6 +53,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        extra = "ignore"  # tolerate stale/unknown keys in .env
 
 
 settings = Settings()

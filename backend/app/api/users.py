@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.utils.database import get_db
 from app.models.user import User
 from app.models.match import Match
+from app.models.match_timeline import MatchTimeline
 from app.models.champion_mastery import ChampionMastery
 from app.utils.auth import get_current_user
 from app.services.riot_api import riot_api
@@ -270,63 +271,59 @@ async def refresh_user_data(
 
 # Helper functions for fetching and storing data
 async def _fetch_and_store_matches(db: Session, user: User):
-    """Fetch match data from Riot API and store in database - stops when finding existing matches"""
+    """Page through history up to MATCH_HISTORY_MAX, stopping at already-stored matches."""
     try:
-        # Fetch matches in batches and stop when we find an existing match
         batch_size = 100
-        found_existing = False
+        max_matches = settings.MATCH_HISTORY_MAX
         matches_added = 0
-        
-        # Fetch first batch to check
-        match_ids = riot_api.get_match_history(user.puuid, count=batch_size, start=0)
-        
-        if not match_ids:
-            logger.debug(f"No matches found for user {user.puuid}")
-            return
-        
-        logger.debug(f"Checking {len(match_ids)} match IDs for existing matches...")
-        
-        # Get all existing match IDs in one query (much faster!)
+
         existing_match_ids = set(
             row[0] for row in db.query(Match.match_id)
             .filter(Match.user_id == user.id)
             .all()
         )
-        
+
+        # Collect unseen match ids, stopping at known history.
         new_match_ids = []
-        for match_id in match_ids:
-            if match_id in existing_match_ids:
-                logger.debug(f"Found existing match {match_id}. Will not fetch more.")
-                found_existing = True
+        found_existing = False
+        for start in range(0, max_matches, batch_size):
+            count = min(batch_size, max_matches - start)
+            batch = riot_api.get_match_history(user.puuid, count=count, start=start)
+            if not batch:
                 break
-            new_match_ids.append(match_id)
-        
-        # Only fetch details for new matches
+            for match_id in batch:
+                if match_id in existing_match_ids:
+                    found_existing = True
+                    break
+                new_match_ids.append(match_id)
+            if found_existing or len(batch) < count:
+                break
+
+        logger.debug(f"Fetching details for {len(new_match_ids)} new matches (max {max_matches})...")
+
         for match_id in new_match_ids:
-            # Fetch match details from Riot API
             match_data = riot_api.get_match_details(match_id)
             if not match_data:
                 continue
-            
-            # Find player data in match
+
             player_data = next(
                 (p for p in match_data["info"]["participants"] if p["puuid"] == user.puuid),
                 None
             )
             if not player_data:
                 continue
-            
-            # Extract opponent champion
-            opponent_champion = _get_opponent_champion(match_data, player_data)
-            
-            # Calculate game mode
+
+            # Full participant so we can reuse its participantId for the timeline.
+            opponent = _get_lane_opponent_participant(match_data, player_data)
+            opponent_champion = opponent["championName"] if opponent else None
+
             queue_id = match_data["info"]["queueId"]
             game_mode = _get_game_mode(queue_id)
-            
-            # Calculate kill participation
+            duration_min = match_data["info"]["gameDuration"] / 60
+
             team_kills = sum(p["kills"] for p in match_data["info"]["participants"] if p["teamId"] == player_data["teamId"])
             kill_participation = (player_data["kills"] + player_data["assists"]) / max(1, team_kills)
-            
+
             # Create match record
             match_record = Match(
                 match_id=match_id,
@@ -335,28 +332,130 @@ async def _fetch_and_store_matches(db: Session, user: User):
                 opponent_champion=opponent_champion,
                 team_position=_normalize_team_position(player_data.get("teamPosition", "UNKNOWN")),
                 win=player_data["win"],
-                game_duration=match_data["info"]["gameDuration"] / 60,  # Convert to minutes
+                game_duration=duration_min,
                 kills=player_data["kills"],
                 deaths=player_data["deaths"],
                 assists=player_data["assists"],
-                cs_per_min=(player_data["totalMinionsKilled"] + player_data["neutralMinionsKilled"]) / (match_data["info"]["gameDuration"] / 60),
-                gold_per_min=player_data["goldEarned"] / (match_data["info"]["gameDuration"] / 60),
+                cs_per_min=(player_data["totalMinionsKilled"] + player_data["neutralMinionsKilled"]) / duration_min,
+                gold_per_min=player_data["goldEarned"] / duration_min,
                 kill_participation=kill_participation,
-                damage_to_champs_per_min=player_data["totalDamageDealtToChampions"] / (match_data["info"]["gameDuration"] / 60),
+                damage_to_champs_per_min=player_data["totalDamageDealtToChampions"] / duration_min,
+                # Vision
+                vision_score=player_data.get("visionScore", 0),
+                wards_placed=player_data.get("wardsPlaced", 0),
+                wards_killed=player_data.get("wardsKilled", 0),
+                control_wards_bought=player_data.get("visionWardsBoughtInGame", 0),
+                # Damage breakdown
+                damage_taken=player_data.get("totalDamageTaken", 0),
+                damage_self_mitigated=player_data.get("damageSelfMitigated", 0),
+                damage_to_turrets=player_data.get("damageDealtToTurrets", 0),
+                damage_to_objectives=player_data.get("damageDealtToObjectives", 0),
+                total_heal=player_data.get("totalHeal", 0),
+                # Objective participation
+                turret_takedowns=player_data.get("turretTakedowns", 0),
+                inhibitor_takedowns=player_data.get("inhibitorTakedowns", 0),
+                dragon_kills=player_data.get("dragonKills", 0),
+                baron_kills=player_data.get("baronKills", 0),
+                objectives_stolen=player_data.get("objectivesStolen", 0),
+                first_blood=player_data.get("firstBloodKill", False),
+                first_tower=player_data.get("firstTowerKill", False),
+                # Economy and level
+                gold_earned=player_data.get("goldEarned", 0),
+                total_cs=player_data.get("totalMinionsKilled", 0) + player_data.get("neutralMinionsKilled", 0),
+                champ_level=player_data.get("champLevel", 0),
+                # Combat highlights
+                largest_killing_spree=player_data.get("largestKillingSpree", 0),
+                largest_multi_kill=player_data.get("largestMultiKill", 0),
+                double_kills=player_data.get("doubleKills", 0),
+                triple_kills=player_data.get("tripleKills", 0),
+                quadra_kills=player_data.get("quadraKills", 0),
+                penta_kills=player_data.get("pentaKills", 0),
+                time_ccing_others=player_data.get("timeCCingOthers", 0),
                 game_creation=datetime.fromtimestamp(match_data["info"]["gameCreation"] / 1000),
                 queue_id=queue_id,
                 game_mode=game_mode
             )
-            
+
             db.add(match_record)
             matches_added += 1
-        
+
+            # Timeline only applies to lane games with an identified opponent.
+            if settings.FETCH_MATCH_TIMELINE and opponent is not None:
+                _fetch_and_store_timeline(db, user, match_id, player_data, opponent)
+
         db.commit()
         logger.debug(f"Successfully stored {matches_added} new matches for user {user.puuid}")
-        
+
     except Exception as e:
         logger.error(f"Failed to fetch and store matches: {e}")
         db.rollback()
+
+
+def _fetch_and_store_timeline(db: Session, user: User, match_id: str, player_data: dict, opponent: dict):
+    """Fetch the match timeline and store per-minute series vs the lane opponent."""
+    try:
+        timeline = riot_api.get_match_timeline(match_id)
+        if not timeline:
+            return
+        metrics = _compute_timeline_metrics(timeline, player_data, opponent)
+        if not metrics:
+            return
+        db.add(MatchTimeline(
+            match_id=match_id,
+            user_id=user.id,
+            champion=player_data["championName"],
+            opponent_champion=opponent["championName"],
+            team_position=_normalize_team_position(player_data.get("teamPosition", "UNKNOWN")),
+            **metrics,
+        ))
+    except Exception as e:
+        logger.error(f"Failed to store timeline for {match_id}: {e}")
+
+
+def _compute_timeline_metrics(timeline: dict, player_data: dict, opponent: dict) -> Optional[dict]:
+    """Build per-minute CS/gold/XP series (index = minute) for the user vs the opponent."""
+    frames = timeline.get("info", {}).get("frames", [])
+    if not frames:
+        return None
+
+    player_pid = str(player_data["participantId"])
+    opp_pid = str(opponent["participantId"])
+
+    cs_series, opp_cs_series, gold_diff_series, xp_diff_series = [], [], [], []
+    for frame in frames:
+        pf = frame.get("participantFrames", {})
+        me = pf.get(player_pid)
+        opp = pf.get(opp_pid)
+        if not me or not opp:
+            continue
+        cs_series.append(me.get("minionsKilled", 0) + me.get("jungleMinionsKilled", 0))
+        opp_cs_series.append(opp.get("minionsKilled", 0) + opp.get("jungleMinionsKilled", 0))
+        gold_diff_series.append(me.get("totalGold", 0) - opp.get("totalGold", 0))
+        xp_diff_series.append(me.get("xp", 0) - opp.get("xp", 0))
+
+    if not cs_series:
+        return None
+
+    def cs_diff_at(minute: int) -> Optional[int]:
+        if len(cs_series) > minute:
+            return cs_series[minute] - opp_cs_series[minute]
+        return None
+
+    def gold_diff_at(minute: int) -> Optional[int]:
+        if len(gold_diff_series) > minute:
+            return gold_diff_series[minute]
+        return None
+
+    return {
+        "cs_series": cs_series,
+        "opponent_cs_series": opp_cs_series,
+        "gold_diff_series": gold_diff_series,
+        "xp_diff_series": xp_diff_series,
+        "cs_diff_at_10": cs_diff_at(10),
+        "cs_diff_at_15": cs_diff_at(15),
+        "gold_diff_at_10": gold_diff_at(10),
+        "gold_diff_at_15": gold_diff_at(15),
+    }
 
 async def _fetch_and_store_mastery(db: Session, user: User):
     """Fetch champion mastery data from Riot API and store in database"""
@@ -396,17 +495,19 @@ async def _fetch_and_store_mastery(db: Session, user: User):
         logger.error(f"Failed to fetch and store mastery: {e}")
         db.rollback()
 
-def _get_opponent_champion(match_data: dict, player_data: dict) -> Optional[str]:
-    """Get the opponent champion in the same lane"""
-    player_lane = player_data.get("teamPosition", "UNKNOWN")
+_LANE_POSITIONS = {"TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"}
+
+
+def _get_lane_opponent_participant(match_data: dict, player_data: dict) -> Optional[dict]:
+    """Opposing participant in the same lane, or None (e.g. ARAM/Arena/unknown position)."""
+    player_lane = (player_data.get("teamPosition") or "").strip().upper()
+    if player_lane not in _LANE_POSITIONS:
+        return None
     player_team = player_data["teamId"]
-    
-    # Find opponent in same lane
     for participant in match_data["info"]["participants"]:
-        if (participant["teamId"] != player_team and 
-            participant.get("teamPosition") == player_lane):
-            return participant["championName"]
-    
+        if (participant["teamId"] != player_team and
+                participant.get("teamPosition") == player_data.get("teamPosition")):
+            return participant
     return None
 
 def _get_game_mode(queue_id: int) -> str:
