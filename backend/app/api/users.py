@@ -271,32 +271,26 @@ async def refresh_user_data(
 
 # Helper functions for fetching and storing data
 async def _fetch_and_store_matches(db: Session, user: User):
-    """Fetch match data from Riot API and store it.
-
-    Pages through history up to settings.MATCH_HISTORY_MAX, stopping early as
-    soon as it reaches matches already in the database (incremental refresh).
-    """
+    """Page through history up to MATCH_HISTORY_MAX, stopping at already-stored matches."""
     try:
         batch_size = 100
         max_matches = settings.MATCH_HISTORY_MAX
         matches_added = 0
 
-        # All existing ids up front so we can stop as soon as we reach known
-        # history instead of re-fetching everything.
         existing_match_ids = set(
             row[0] for row in db.query(Match.match_id)
             .filter(Match.user_id == user.id)
             .all()
         )
 
-        # Collect unseen match ids by paging through history.
+        # Collect unseen match ids, stopping at known history.
         new_match_ids = []
         found_existing = False
         for start in range(0, max_matches, batch_size):
             count = min(batch_size, max_matches - start)
             batch = riot_api.get_match_history(user.puuid, count=count, start=start)
             if not batch:
-                break  # reached the end of available history
+                break
             for match_id in batch:
                 if match_id in existing_match_ids:
                     found_existing = True
@@ -308,12 +302,10 @@ async def _fetch_and_store_matches(db: Session, user: User):
         logger.debug(f"Fetching details for {len(new_match_ids)} new matches (max {max_matches})...")
 
         for match_id in new_match_ids:
-            # Fetch match details from Riot API
             match_data = riot_api.get_match_details(match_id)
             if not match_data:
                 continue
 
-            # Find player data in match
             player_data = next(
                 (p for p in match_data["info"]["participants"] if p["puuid"] == user.puuid),
                 None
@@ -321,8 +313,7 @@ async def _fetch_and_store_matches(db: Session, user: User):
             if not player_data:
                 continue
 
-            # Identify the lane opponent (full participant, so we can also use
-            # their participantId for the timeline below).
+            # Full participant so we can reuse its participantId for the timeline.
             opponent = _get_lane_opponent_participant(match_data, player_data)
             opponent_champion = opponent["championName"] if opponent else None
 
@@ -388,8 +379,7 @@ async def _fetch_and_store_matches(db: Session, user: User):
             db.add(match_record)
             matches_added += 1
 
-            # Fetch and store the laning-phase timeline for lane games where we
-            # could identify the direct opponent.
+            # Timeline only applies to lane games with an identified opponent.
             if settings.FETCH_MATCH_TIMELINE and opponent is not None:
                 _fetch_and_store_timeline(db, user, match_id, player_data, opponent)
 
@@ -423,11 +413,7 @@ def _fetch_and_store_timeline(db: Session, user: User, match_id: str, player_dat
 
 
 def _compute_timeline_metrics(timeline: dict, player_data: dict, opponent: dict) -> Optional[dict]:
-    """Build per-minute CS / gold / XP series for the user vs their lane opponent.
-
-    Frames arrive one per minute (index 0 = game start), so the array index is
-    the minute. Returns None when the timeline can't be aligned to both players.
-    """
+    """Build per-minute CS/gold/XP series (index = minute) for the user vs the opponent."""
     frames = timeline.get("info", {}).get("frames", [])
     if not frames:
         return None
@@ -513,11 +499,7 @@ _LANE_POSITIONS = {"TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"}
 
 
 def _get_lane_opponent_participant(match_data: dict, player_data: dict) -> Optional[dict]:
-    """Return the opposing participant in the same lane (full participant dict).
-
-    Returns None for game modes without a fixed lane assignment (ARAM, Arena)
-    or when the player's position is unknown, so timeline comparison is skipped.
-    """
+    """Opposing participant in the same lane, or None (e.g. ARAM/Arena/unknown position)."""
     player_lane = (player_data.get("teamPosition") or "").strip().upper()
     if player_lane not in _LANE_POSITIONS:
         return None
@@ -527,12 +509,6 @@ def _get_lane_opponent_participant(match_data: dict, player_data: dict) -> Optio
                 participant.get("teamPosition") == player_data.get("teamPosition")):
             return participant
     return None
-
-
-def _get_opponent_champion(match_data: dict, player_data: dict) -> Optional[str]:
-    """Get the opponent champion in the same lane."""
-    opponent = _get_lane_opponent_participant(match_data, player_data)
-    return opponent["championName"] if opponent else None
 
 def _get_game_mode(queue_id: int) -> str:
     """Convert queue ID to game mode name"""

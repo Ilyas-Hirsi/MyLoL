@@ -5,30 +5,25 @@ from app.utils.database import Base
 
 
 class MatchTimeline(Base):
-    """Per-minute laning-phase series derived from the Match-V5 timeline.
-
-    One row per (user, match). The series are cumulative values indexed by
-    minute (index 0 = game start), so the frontend can plot the user's CS,
-    gold and XP against their lane opponent's over the course of the game.
-    """
+    """Per-minute CS/gold/XP series for a user vs their lane opponent (one row per match)."""
     __tablename__ = "match_timelines"
 
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(String(50), unique=True, nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
 
-    # Denormalised so aggregation queries don't need to join the matches table.
+    # Denormalised to avoid joining matches.
     champion = Column(String(50), nullable=True)
     opponent_champion = Column(String(50), nullable=True, index=True)
     team_position = Column(String(20), nullable=True)
 
     # Per-minute cumulative series (JSON arrays, index = minute).
     cs_series = Column(JSON, nullable=True)             # user creep score
-    opponent_cs_series = Column(JSON, nullable=True)    # lane opponent creep score
-    gold_diff_series = Column(JSON, nullable=True)      # user totalGold - opponent
+    opponent_cs_series = Column(JSON, nullable=True)    # opponent creep score
+    gold_diff_series = Column(JSON, nullable=True)      # user gold - opponent
     xp_diff_series = Column(JSON, nullable=True)        # user xp - opponent
 
-    # Laning-phase checkpoints (user minus opponent), for quick aggregation.
+    # @10 / @15 checkpoints (user minus opponent).
     cs_diff_at_10 = Column(Integer, nullable=True)
     cs_diff_at_15 = Column(Integer, nullable=True)
     gold_diff_at_10 = Column(Integer, nullable=True)
