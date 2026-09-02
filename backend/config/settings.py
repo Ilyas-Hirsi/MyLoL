@@ -37,9 +37,19 @@ class Settings(BaseSettings):
     CACHE_CHAMPION_MASTERY_TTL: int = 7200
     CACHE_MATCHUP_DATA_TTL: int = 86400
     
-    # Rate Limiting
+    # Rate Limiting (sliding window: RIOT_API_RATE_LIMIT requests per window)
+    # Defaults assume a raised app-rate-limit key (>= 2000 requests / 10s).
+    # Lower these to match your key if it is more restrictive.
+    RIOT_API_RATE_LIMIT: int = 2000
+    RIOT_API_RATE_WINDOW_SECONDS: float = 10.0
+    # Legacy per-second / per-two-minute values (kept for backwards compatibility)
     RIOT_API_RATE_LIMIT_PER_SECOND: int = 20
     RIOT_API_RATE_LIMIT_PER_TWO_MINUTES: int = 100
+
+    # How many recent matches to back-fill on a full refresh.
+    MATCH_HISTORY_MAX: int = 1000
+    # Fetch the per-minute timeline (extra API call per match) for lane games.
+    FETCH_MATCH_TIMELINE: bool = True
     
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
