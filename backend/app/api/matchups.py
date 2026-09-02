@@ -125,13 +125,7 @@ async def get_matchup_timeline(
     current_user: str = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Averaged laning-phase timeline for the user versus a lane opponent.
-
-    Returns per-minute CS (user and opponent), the CS lead, the gold lead, and
-    the @10 / @15 checkpoint differentials - the data behind a "CS/min vs your
-    lane opponent" chart, aggregated across every game the user played into
-    `opponent`.
-    """
+    """Averaged per-minute CS/gold series vs a lane opponent (data for the CS/min chart)."""
     try:
         user = _get_user_with_validation(db, current_user)
         normalized_role = personal_stats.normalize_role(role)

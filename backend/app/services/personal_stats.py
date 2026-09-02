@@ -1,13 +1,6 @@
-"""Personal statistics derived from the user's own match history.
-
-Every function here computes stats from the `matches` table (real Riot
-Match-V5 data the app already ingests) - there is no web scraping and no
-fabricated data. When a user has no games matching a query, the caller gets
-an empty result rather than a made-up one.
-"""
+"""Personal statistics computed from the user's own ingested match data."""
 from math import sqrt
 from typing import Dict, List, Optional, Tuple
-from collections import defaultdict
 from sqlalchemy.orm import Session
 from sqlalchemy import Integer, func
 
@@ -19,13 +12,7 @@ _WILSON_Z = 1.96
 
 
 def wilson_lower_bound(wins: int, games: int, z: float = _WILSON_Z) -> float:
-    """Lower bound of the Wilson score interval for a win rate, as a percentage.
-
-    A raw win rate treats 2/2 (100%) as better than 40/60 (67%), which is
-    misleading on tiny samples. The Wilson lower bound discounts a win rate by
-    how little data backs it, so a champion needs both a good record *and*
-    enough games to rank highly. Returns 0.0 when there are no games.
-    """
+    """Wilson lower-bound win rate (%), discounting small samples; 0.0 for no games."""
     if games <= 0:
         return 0.0
     phat = wins / games
@@ -135,8 +122,7 @@ def champions_vs_opponent(
             "win_rate": round(wins / games * 100, 1),
             "confidence": wilson_lower_bound(wins, games),
         })
-    # Rank by the confidence-adjusted win rate so a 2-0 record doesn't leapfrog
-    # a proven one; fall back to raw win rate, then sample size, for ties.
+    # Rank by confidence-adjusted win rate, then raw win rate, then sample size.
     result.sort(
         key=lambda x: (x["confidence"], x["win_rate"], x["games"]),
         reverse=True,
@@ -242,11 +228,7 @@ def champion_summary(
 
 
 def _average_series(series_list: List[List], max_len: int) -> List[float]:
-    """Element-wise average of several sequences, per index, up to max_len.
-
-    Each index is averaged only over the games that actually reached that
-    minute, so a long game doesn't drag the early-game average around.
-    """
+    """Per-index average across sequences, up to max_len (only games reaching that index)."""
     sums: List[float] = []
     counts: List[int] = []
     for series in series_list:
@@ -279,13 +261,7 @@ def lane_timeline_vs_opponent(
     min_games: int = 1,
     max_minutes: int = 20,
 ) -> Dict:
-    """Averaged per-minute CS / gold-diff series for the user vs `opponent`.
-
-    Aggregates the stored timelines of every lane game the user played into
-    `opponent`, producing chartable series: the user's average CS by minute,
-    the opponent's average CS, the CS lead (user minus opponent) and the gold
-    lead, plus the classic @10 / @15 laning checkpoints.
-    """
+    """Averaged per-minute CS/gold-diff series and @10/@15 checkpoints vs `opponent`."""
     query = db.query(MatchTimeline).filter(
         MatchTimeline.user_id == user_id,
         MatchTimeline.opponent_champion == opponent,
