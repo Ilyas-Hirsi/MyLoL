@@ -117,6 +117,34 @@ async def get_head_to_head_matchup(
         raise HTTPException(status_code=500, detail=f"Failed to get matchup data: {str(e)}")
 
 
+@router.get("/timeline/{opponent}")
+async def get_matchup_timeline(
+    opponent: str,
+    role: Optional[str] = Query(None, description="Filter by role (TOP, JUNGLE, MIDDLE, ADC, SUPPORT)"),
+    min_games: int = Query(1, ge=1, description="Minimum games required before returning a series"),
+    current_user: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Averaged laning-phase timeline for the user versus a lane opponent.
+
+    Returns per-minute CS (user and opponent), the CS lead, the gold lead, and
+    the @10 / @15 checkpoint differentials - the data behind a "CS/min vs your
+    lane opponent" chart, aggregated across every game the user played into
+    `opponent`.
+    """
+    try:
+        user = _get_user_with_validation(db, current_user)
+        normalized_role = personal_stats.normalize_role(role)
+        return personal_stats.lane_timeline_vs_opponent(
+            db, user.id, opponent, normalized_role, min_games
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Matchup timeline error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get matchup timeline: {str(e)}")
+
+
 @router.get("/details/{opponent}")
 async def get_matchup_details(
     opponent: str,
