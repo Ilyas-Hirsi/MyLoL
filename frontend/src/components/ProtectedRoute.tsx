@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { Box, CircularProgress, Typography } from '@mui/material';
 import { useAuth } from '../contexts/AuthContext';
+import LoadingBar from './LoadingBar';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -10,22 +10,11 @@ interface ProtectedRouteProps {
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
 
+  // The session check is a single request. A full-page spinner and a "Loading
+  // League Analytics…" caption overstate it; a rule at the top of the viewport
+  // is enough, and it does not flash a layout that is about to be replaced.
   if (isLoading) {
-    return (
-      <Box
-        display="flex"
-        flexDirection="column"
-        justifyContent="center"
-        alignItems="center"
-        minHeight="100vh"
-        gap={2}
-      >
-        <CircularProgress size={60} />
-        <Typography variant="h6" color="text.secondary">
-          Loading League Analytics...
-        </Typography>
-      </Box>
-    );
+    return <LoadingBar label="Checking session" />;
   }
 
   if (!isAuthenticated) {

@@ -40,6 +40,27 @@ export const formatHMSFromMinutes = (minutes: number): string => {
   return hours > 0 ? `${hh}:${mm}:${ss}` : `${mm}:${ss}`;
 };
 
+// Format an ISO timestamp as a short relative age, e.g. "3h ago".
+// Used for the last-sync marker, which is null until the first refresh runs.
+export const formatRelativeTime = (iso: string): string => {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return 'unknown';
+
+  const seconds = Math.max(0, Math.round((Date.now() - then) / 1000));
+  if (seconds < 60) return 'just now';
+
+  const units: Array<[number, string]> = [
+    [60, 'm'],
+    [3600, 'h'],
+    [86400, 'd'],
+  ];
+  for (let i = units.length - 1; i >= 0; i -= 1) {
+    const [span, suffix] = units[i];
+    if (seconds >= span) return `${Math.floor(seconds / span)}${suffix} ago`;
+  }
+  return 'just now';
+};
+
 // Get difficulty color based on win rate
 export const getDifficultyColor = (winRate: number): string => {
   if (winRate >= 60) return '#4caf50'; // Green - Easy

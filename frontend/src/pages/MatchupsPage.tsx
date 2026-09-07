@@ -8,6 +8,7 @@ import {
   DialogTitle, DialogContent, Divider,
 } from '@mui/material';
 import { useDifficultMatchupsFull, useMatchupDetails } from '../hooks/useApi';
+import PageHeader from '../components/PageHeader';
 import { formatWinRate, formatKDA, getDifficultyColor } from '../utils/helpers';
 
 const MatchupsPage: React.FC = () => {
@@ -62,12 +63,10 @@ const MatchupsPage: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Matchup Analysis
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Analyze your most difficult matchups and find ways to improve
-      </Typography>
+      <PageHeader
+        title="Matchups"
+        description="Opponents you lose to, and what you have played into them."
+      />
 
       {/* Filter Controls */}
       <Card sx={{ mb: 3 }}>

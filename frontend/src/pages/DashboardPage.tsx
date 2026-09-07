@@ -18,16 +18,16 @@ import {
   Cell,
   Tooltip,
 } from 'recharts';
-import { useUserProfile, useMatchHistory, useChampionMastery, useDifficultMatchups, useChampionRecommendations, useRefreshUserData } from '../hooks/useApi';
+import { useUserProfile, useMatchHistory, useChampionMastery, useDifficultMatchups, useChampionRecommendations } from '../hooks/useApi';
+import PageHeader from '../components/PageHeader';
 import { formatNumber, generateChartColors } from '../utils/helpers';
 
 const DashboardPage: React.FC = () => {
-  const { data: user, isLoading: userLoading, error: userError } = useUserProfile();
+  const { isLoading: userLoading, error: userError } = useUserProfile();
   const { data: matches, isLoading: matchesLoading, error: matchesError } = useMatchHistory();
   const { data: mastery, isLoading: masteryLoading, error: masteryError } = useChampionMastery();
   const { data: difficultMatchups, isLoading: matchupsLoading, error: matchupsError } = useDifficultMatchups();
   const { data: recommendations, isLoading: recommendationsLoading, error: recommendationsError } = useChampionRecommendations();
-  const refreshUserData = useRefreshUserData();
 
   const isLoading = userLoading || matchesLoading || masteryLoading || matchupsLoading || recommendationsLoading;
 
@@ -73,34 +73,12 @@ const DashboardPage: React.FC = () => {
 
   const colors = generateChartColors(8);
 
-  const handleRefreshData = async () => {
-    try {
-      await refreshUserData.mutateAsync();
-      // The data will automatically refresh due to React Query invalidation
-    } catch (error) {
-      console.error('Failed to refresh data:', error);
-    }
-  };
-
   return (
     <Box>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={4}>
-        <Box>
-          <Typography variant="h4" gutterBottom>
-            Welcome back, {user?.riot_id}!
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            Here's your League of Legends performance overview
-          </Typography>
-        </Box>
-        <Button 
-          variant="contained" 
-          onClick={handleRefreshData}
-          disabled={refreshUserData.isPending}
-        >
-          {refreshUserData.isPending ? 'Refreshing...' : 'Refresh Data'}
-        </Button>
-      </Box>
+      <PageHeader
+        title="Dashboard"
+        description="Your current record, and the matchups costing you games."
+      />
 
       <Grid container spacing={3}>
         {/* Recent Performance */}

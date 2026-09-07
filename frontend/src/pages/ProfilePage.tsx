@@ -6,35 +6,23 @@ import {
   Typography,
   Grid,
   Avatar,
-  Button,
   CircularProgress,
   Alert,
   Chip,
   Paper,
   Divider,
 } from '@mui/material';
-import {
-  Refresh as RefreshIcon,
-  EmojiEvents as TrophyIcon,
-} from '@mui/icons-material';
-import { useUserProfile, useMatchHistory, useChampionMastery, useRefreshUserData } from '../hooks/useApi';
+import { EmojiEvents as TrophyIcon } from '@mui/icons-material';
+import { useUserProfile, useMatchHistory, useChampionMastery } from '../hooks/useApi';
+import PageHeader from '../components/PageHeader';
 import { formatNumber, formatKDA, getMasteryLevelColor, formatHMSFromMinutes } from '../utils/helpers';
 
 const ProfilePage: React.FC = () => {
   const { data: user, isLoading: userLoading, error: userError } = useUserProfile();
   const { data: matches, isLoading: matchesLoading } = useMatchHistory();
   const { data: mastery, isLoading: masteryLoading } = useChampionMastery();
-  const refreshUserData = useRefreshUserData();
 
   const isLoading = userLoading || matchesLoading || masteryLoading;
-
-  const handleRefresh = async () => {
-    try {
-      await refreshUserData.mutateAsync();
-    } catch (error) {
-      console.error('Failed to refresh data:', error);
-    }
-  };
 
   // Calculate overall stats
   const totalMatches = matches?.length || 0;
@@ -68,12 +56,10 @@ const ProfilePage: React.FC = () => {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Profile
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Your League of Legends profile and statistics
-      </Typography>
+      <PageHeader
+        title="Profile"
+        description="Your account, lifetime totals and recent games."
+      />
 
       <Grid container spacing={3}>
         {/* User Info Card */}
@@ -110,15 +96,6 @@ const ProfilePage: React.FC = () => {
                   {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}
                 </Typography>
 
-                <Button
-                  variant="contained"
-                  startIcon={<RefreshIcon />}
-                  onClick={handleRefresh}
-                  disabled={refreshUserData.isPending}
-                  sx={{ mt: 2 }}
-                >
-                  {refreshUserData.isPending ? 'Refreshing...' : 'Refresh Data'}
-                </Button>
               </Box>
             </CardContent>
           </Card>
