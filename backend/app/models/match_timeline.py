@@ -10,7 +10,7 @@ class MatchTimeline(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(String(50), unique=True, nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_puuid = Column(String(100), ForeignKey("users.puuid"), nullable=False, index=True)
 
     # Denormalised to avoid joining matches.
     champion = Column(String(50), nullable=True)

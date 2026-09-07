@@ -1,4 +1,4 @@
-﻿from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.utils.database import Base
@@ -9,7 +9,7 @@ class Match(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     match_id = Column(String(50), unique=True, nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_puuid = Column(String(100), ForeignKey("users.puuid"), nullable=False, index=True)
     
     # Match details
     champion = Column(String(50), nullable=False)

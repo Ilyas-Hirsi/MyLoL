@@ -10,7 +10,7 @@ export const formatWinRate = (wins: number, games: number): string => {
   return `${((wins / games) * 100).toFixed(1)}%`;
 };
 
-// Format large numbers (e.g., mastery points)
+// Format large numbers
 export const formatNumber = (num: number): string => {
   if (num >= 1000000) {
     return `${(num / 1000000).toFixed(1)}M`;
@@ -81,14 +81,6 @@ export const getTierColor = (tier: string): string => {
   return tierColors[tier] || '#6c757d';
 };
 
-// Calculate champion mastery level color
-export const getMasteryLevelColor = (level: number): string => {
-  if (level >= 7) return '#ffd700'; // Gold
-  if (level >= 5) return '#c0c0c0'; // Silver
-  if (level >= 3) return '#cd7f32'; // Bronze
-  return '#6c757d'; // Gray
-};
-
 // Validate Riot ID format
 export const isValidRiotId = (riotId: string): boolean => {
   // Riot ID should be 3-16 characters, alphanumeric and underscores
@@ -101,21 +93,6 @@ export const isValidRiotTag = (tag: string): boolean => {
   // Tag should be 3-5 characters, alphanumeric
   const regex = /^[a-zA-Z0-9]{3,5}$/;
   return regex.test(tag);
-};
-
-// Generate chart colors
-export const generateChartColors = (count: number): string[] => {
-  const colors = [
-    '#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#00ff00',
-    '#0088fe', '#00c49f', '#ffbb28', '#ff8042', '#8884d8',
-    '#82ca9d', '#ffc658', '#ff7300', '#00ff00', '#0088fe'
-  ];
-  
-  const result: string[] = [];
-  for (let i = 0; i < count; i++) {
-    result.push(colors[i % colors.length]);
-  }
-  return result;
 };
 
 // Debounce function

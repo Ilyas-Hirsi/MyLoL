@@ -1,4 +1,4 @@
-﻿import json
+import json
 from typing import Any, Optional
 from app.utils.database import get_redis
 import logging
@@ -48,6 +48,17 @@ class CacheService:
             logger.error(f"Cache delete error: {e}")
             return False
     
+    def delete_pattern(self, pattern: str) -> int:
+        """Delete all keys matching a glob pattern."""
+        if not self.enabled:
+            return 0
+        try:
+            keys = self.redis_client.keys(pattern)
+            return self.redis_client.delete(*keys) if keys else 0
+        except Exception as e:
+            logger.error(f"Cache delete_pattern error: {e}")
+            return 0
+
     def get_or_set(self, key: str, func, ttl: int = 3600) -> Any:
         """Get from cache or set using function"""
         cached_value = self.get(key)

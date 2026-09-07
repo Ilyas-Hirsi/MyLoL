@@ -56,7 +56,7 @@ def _apply_filters(query, role: Optional[str], game_mode: Optional[str]):
 
 def matchup_grid(
     db: Session,
-    user_id: int,
+    user_puuid: str,
     role: Optional[str] = None,
     game_mode: Optional[str] = None,
 ) -> Dict[Tuple[str, str], Tuple[int, int]]:
@@ -71,7 +71,7 @@ def matchup_grid(
         func.count(Match.id).label("games"),
         func.sum(func.cast(Match.win, Integer)).label("wins"),
     ).filter(
-        Match.user_id == user_id,
+        Match.user_puuid == user_puuid,
         Match.champion.isnot(None),
         Match.opponent_champion.isnot(None),
     )
@@ -86,7 +86,7 @@ def matchup_grid(
 
 def champions_vs_opponent(
     db: Session,
-    user_id: int,
+    user_puuid: str,
     opponent: str,
     role: Optional[str] = None,
     game_mode: Optional[str] = None,
@@ -101,7 +101,7 @@ def champions_vs_opponent(
         func.count(Match.id).label("games"),
         func.sum(func.cast(Match.win, Integer)).label("wins"),
     ).filter(
-        Match.user_id == user_id,
+        Match.user_puuid == user_puuid,
         Match.opponent_champion == opponent,
         Match.champion.isnot(None),
     )
@@ -132,7 +132,7 @@ def champions_vs_opponent(
 
 def opponents_faced_on_champion(
     db: Session,
-    user_id: int,
+    user_puuid: str,
     champion: str,
     role: Optional[str] = None,
     game_mode: Optional[str] = None,
@@ -147,7 +147,7 @@ def opponents_faced_on_champion(
         func.count(Match.id).label("games"),
         func.sum(func.cast(Match.win, Integer)).label("wins"),
     ).filter(
-        Match.user_id == user_id,
+        Match.user_puuid == user_puuid,
         Match.champion == champion,
         Match.opponent_champion.isnot(None),
     )
@@ -177,7 +177,7 @@ def opponents_faced_on_champion(
 
 def champion_summary(
     db: Session,
-    user_id: int,
+    user_puuid: str,
     champion: str,
     role: Optional[str] = None,
     game_mode: Optional[str] = None,
@@ -188,7 +188,7 @@ def champion_summary(
     (within the current filters) played on this champion.
     """
     total_query = _apply_filters(
-        db.query(func.count(Match.id)).filter(Match.user_id == user_id),
+        db.query(func.count(Match.id)).filter(Match.user_puuid == user_puuid),
         role,
         game_mode,
     )
@@ -203,7 +203,7 @@ def champion_summary(
         func.avg(Match.cs_per_min).label("avg_cs_per_min"),
         func.avg(Match.damage_to_champs_per_min).label("avg_damage_per_min"),
     ).filter(
-        Match.user_id == user_id,
+        Match.user_puuid == user_puuid,
         Match.champion == champion,
     )
     query = _apply_filters(query, role, game_mode)
@@ -255,7 +255,7 @@ def _average_checkpoint(values: List[Optional[int]]) -> Optional[float]:
 
 def lane_timeline_vs_opponent(
     db: Session,
-    user_id: int,
+    user_puuid: str,
     opponent: str,
     role: Optional[str] = None,
     min_games: int = 1,
@@ -263,7 +263,7 @@ def lane_timeline_vs_opponent(
 ) -> Dict:
     """Averaged per-minute CS/gold-diff series and @10/@15 checkpoints vs `opponent`."""
     query = db.query(MatchTimeline).filter(
-        MatchTimeline.user_id == user_id,
+        MatchTimeline.user_puuid == user_puuid,
         MatchTimeline.opponent_champion == opponent,
     )
     if role:

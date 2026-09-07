@@ -11,25 +11,16 @@ import {
   Paper,
   Button,
 } from '@mui/material';
-import {
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-} from 'recharts';
-import { useUserProfile, useMatchHistory, useChampionMastery, useDifficultMatchups, useChampionRecommendations } from '../hooks/useApi';
+import { useUserProfile, useMatchHistory, useDifficultMatchups, useChampionRecommendations } from '../hooks/useApi';
 import PageHeader from '../components/PageHeader';
-import { formatNumber, generateChartColors } from '../utils/helpers';
 
 const DashboardPage: React.FC = () => {
   const { isLoading: userLoading, error: userError } = useUserProfile();
   const { data: matches, isLoading: matchesLoading, error: matchesError } = useMatchHistory();
-  const { data: mastery, isLoading: masteryLoading, error: masteryError } = useChampionMastery();
   const { data: difficultMatchups, isLoading: matchupsLoading, error: matchupsError } = useDifficultMatchups();
   const { data: recommendations, isLoading: recommendationsLoading, error: recommendationsError } = useChampionRecommendations();
 
-  const isLoading = userLoading || matchesLoading || masteryLoading || matchupsLoading || recommendationsLoading;
+  const isLoading = userLoading || matchesLoading || matchupsLoading || recommendationsLoading;
 
   if (isLoading) {
     return (
@@ -41,11 +32,11 @@ const DashboardPage: React.FC = () => {
   }
 
   // Show errors if any
-  if (userError || matchesError || masteryError || matchupsError || recommendationsError) {
+  if (userError || matchesError || matchupsError || recommendationsError) {
     return (
       <Box>
         <Alert severity="error">
-          Error loading data: {userError?.message || matchesError?.message || masteryError?.message || matchupsError?.message || recommendationsError?.message}
+          Error loading data: {userError?.message || matchesError?.message || matchupsError?.message || recommendationsError?.message}
         </Alert>
         <Button 
           variant="contained" 
@@ -59,19 +50,11 @@ const DashboardPage: React.FC = () => {
   }
 
 
-  const championPlayData = mastery?.slice(0, 8).map((champ) => ({
-    name: champ.champion_name,
-    points: champ.champion_points,
-    level: champ.champion_level
-  }));
-
   const difficultMatchupsData = difficultMatchups?.slice(0, 5).map((matchup: any) => ({
     champion: matchup.champion,
     winRate: matchup.win_rate,
     games: matchup.games_played
   }));
-
-  const colors = generateChartColors(8);
 
   return (
     <Box>
@@ -102,14 +85,6 @@ const DashboardPage: React.FC = () => {
                 </Paper>
                 <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
                   <Typography variant="body2" color="text.secondary">
-                    Champions Mastered
-                  </Typography>
-                  <Typography variant="h4">
-                    {mastery?.length || 0}
-                  </Typography>
-                </Paper>
-                <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                  <Typography variant="body2" color="text.secondary">
                     Difficult Matchups
                   </Typography>
                   <Typography variant="h4">
@@ -117,36 +92,6 @@ const DashboardPage: React.FC = () => {
                   </Typography>
                 </Paper>
               </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Top Champions by Mastery */}
-        <Grid item xs={12} md={6}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Top Champions by Mastery
-              </Typography>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={championPlayData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({name, points}) => `${name} (${formatNumber(points)})`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="points"
-                  >
-                    {championPlayData?.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
             </CardContent>
           </Card>
         </Grid>
@@ -202,12 +147,6 @@ const DashboardPage: React.FC = () => {
                     <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
                       <Typography variant="h6" gutterBottom>
                         {rec.champion}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        Mastery Level {rec.mastery_level}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" gutterBottom>
-                        {formatNumber(rec.mastery_points)} points
                       </Typography>
                       <Chip
                         label={`${rec.counter_win_rate.toFixed(1)}% vs counters`}

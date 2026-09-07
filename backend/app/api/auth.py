@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from app.utils.database import get_db
@@ -52,7 +52,7 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
     # Create access token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": str(user.id)}, expires_delta=access_token_expires
+        data={"sub": user.puuid}, expires_delta=access_token_expires
     )
 
     # Return token payload expected by frontend

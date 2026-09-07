@@ -1,9 +1,9 @@
 // User types
 export interface User {
-  id: number;
+  // The PUUID is the identity; there is no surrogate id.
+  puuid: string;
   riot_id: string;
   tag: string;
-  puuid: string;
   created_at: string;
   last_updated?: string;
 }
@@ -64,14 +64,6 @@ export interface MatchStats {
 }
 
 // Champion types
-export interface ChampionMastery {
-  champion_id: number;
-  champion_name: string;
-  champion_level: number;
-  champion_points: number;
-  last_played?: string;
-}
-
 export interface ChampionRecommendation {
   champion: string;
   mastery_points: number;

@@ -12,17 +12,15 @@ import {
   Paper,
   Divider,
 } from '@mui/material';
-import { EmojiEvents as TrophyIcon } from '@mui/icons-material';
-import { useUserProfile, useMatchHistory, useChampionMastery } from '../hooks/useApi';
+import { useUserProfile, useMatchHistory } from '../hooks/useApi';
 import PageHeader from '../components/PageHeader';
-import { formatNumber, formatKDA, getMasteryLevelColor, formatHMSFromMinutes } from '../utils/helpers';
+import { formatKDA, formatHMSFromMinutes } from '../utils/helpers';
 
 const ProfilePage: React.FC = () => {
   const { data: user, isLoading: userLoading, error: userError } = useUserProfile();
   const { data: matches, isLoading: matchesLoading } = useMatchHistory();
-  const { data: mastery, isLoading: masteryLoading } = useChampionMastery();
 
-  const isLoading = userLoading || matchesLoading || masteryLoading;
+  const isLoading = userLoading || matchesLoading;
 
   // Calculate overall stats
   const totalMatches = matches?.length || 0;
@@ -34,9 +32,6 @@ const ProfilePage: React.FC = () => {
   const totalDeaths = matches?.reduce((sum, match) => sum + match.kda.deaths, 0) || 0;
   const totalAssists = matches?.reduce((sum, match) => sum + match.kda.assists, 0) || 0;
   const avgKDA = totalDeaths > 0 ? (totalKills + totalAssists) / totalDeaths : totalKills + totalAssists;
-
-  // Top champions by mastery
-  const topChampions = mastery?.slice(0, 5) || [];
 
   if (userError) {
     return (
@@ -149,17 +144,9 @@ const ProfilePage: React.FC = () => {
                     </Typography>
                   </Paper>
                 </Grid>
-              </Grid>
-
-              <Divider sx={{ my: 3 }} />
-
-              <Typography variant="h6" gutterBottom>
-                Performance Metrics
-              </Typography>
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={4}>
+                <Grid item xs={6} sm={3}>
                   <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'background.default' }}>
-                    <Typography variant="h5" color="info.main">
+                    <Typography variant="h4" color="info.main">
                       {avgKDA.toFixed(2)}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
@@ -167,71 +154,6 @@ const ProfilePage: React.FC = () => {
                     </Typography>
                   </Paper>
                 </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'background.default' }}>
-                    <Typography variant="h5" color="secondary.main">
-                      {mastery?.length || 0}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Champions Mastered
-                    </Typography>
-                  </Paper>
-                </Grid>
-                <Grid item xs={12} sm={4}>
-                  <Paper sx={{ p: 2, textAlign: 'center', bgcolor: 'background.default' }}>
-                    <Typography variant="h5" color="primary.main">
-                      {formatNumber(mastery?.reduce((sum, champ) => sum + champ.champion_points, 0) || 0)}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Total Mastery Points
-                    </Typography>
-                  </Paper>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* Top Champions */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Top Champions by Mastery
-              </Typography>
-              <Grid container spacing={2}>
-                {topChampions.map((champion, index) => (
-                  <Grid item xs={12} sm={6} md={4} lg={2.4} key={champion.champion_id}>
-                    <Paper sx={{ p: 2, bgcolor: 'background.default', textAlign: 'center' }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', mb: 1 }}>
-                        <TrophyIcon sx={{ mr: 1, color: getMasteryLevelColor(champion.champion_level) }} />
-                        <Typography variant="h6">
-                          #{index + 1}
-                        </Typography>
-                      </Box>
-                      
-                      <Typography variant="subtitle1" gutterBottom>
-                        {champion.champion_name}
-                      </Typography>
-                      
-                      <Chip
-                        label={`Level ${champion.champion_level}`}
-                        size="small"
-                        sx={{ mb: 1 }}
-                      />
-                      
-                      <Typography variant="body2" color="text.secondary">
-                        {formatNumber(champion.champion_points)} points
-                      </Typography>
-                      
-                      {champion.last_played && (
-                        <Typography variant="caption" color="text.secondary">
-                          Last played: {new Date(champion.last_played).toLocaleDateString()}
-                        </Typography>
-                      )}
-                    </Paper>
-                  </Grid>
-                ))}
               </Grid>
             </CardContent>
           </Card>

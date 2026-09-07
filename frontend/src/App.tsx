@@ -8,7 +8,6 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import MatchupsPage from './pages/MatchupsPage';
-// import ChampionsPage from './pages/ChampionsPage';
 import ProfilePage from './pages/ProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
 import theme from './theme';
@@ -44,7 +43,6 @@ function App() {
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<DashboardPage />} />
                 <Route path="matchups" element={<MatchupsPage />} />
-                {/* <Route path="champions" element={<ChampionsPage />} /> */}
                 <Route path="profile" element={<ProfilePage />} />
               </Route>
               

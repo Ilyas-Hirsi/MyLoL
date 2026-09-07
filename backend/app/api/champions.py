@@ -1,4 +1,4 @@
-﻿from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.utils.database import get_db
@@ -23,13 +23,13 @@ async def get_champion_recommendations(
 ):
     """Get champion recommendations based on difficult matchups"""
     try:
-        user = db.query(User).filter(User.id == int(current_user)).first()
+        user = db.query(User).filter(User.puuid == current_user).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
         # Ensure user has match data
         from app.models.match import Match
-        match_count = db.query(Match).filter(Match.user_id == user.id).count()
+        match_count = db.query(Match).filter(Match.user_puuid == user.puuid).count()
         if match_count == 0:
             return {
                 "recommendations": [],
@@ -39,12 +39,12 @@ async def get_champion_recommendations(
             }
         
         # Get difficult matchups first
-        difficult_matchups = matchup_analyzer.analyze_difficult_matchups(db, user.id, role, game_mode)
+        difficult_matchups = matchup_analyzer.analyze_difficult_matchups(db, user.puuid, role, game_mode)
         difficult_champions = [m["champion"] for m in difficult_matchups]
         
         # Get recommendations
         recommendations = champion_recommender.get_champion_recommendations(
-            db, user.id, difficult_champions, role, game_mode
+            db, user.puuid, difficult_champions, role, game_mode
         )
         
         return {
@@ -72,12 +72,12 @@ async def get_champion_counters(
     Ranked by the user's own win rate against `champion_name`.
     """
     try:
-        user = db.query(User).filter(User.id == int(current_user)).first()
+        user = db.query(User).filter(User.puuid == current_user).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
         counters = champion_recommender.get_champion_counters(
-            db, user.id, champion_name, role, game_mode
+            db, user.puuid, champion_name, role, game_mode
         )
         return {
             "champion": champion_name,
@@ -105,7 +105,7 @@ async def get_champion_stats(
     they beat and lose to most while playing this champion.
     """
     try:
-        user = db.query(User).filter(User.id == int(current_user)).first()
+        user = db.query(User).filter(User.puuid == current_user).first()
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
@@ -113,10 +113,10 @@ async def get_champion_stats(
         normalized_mode = (game_mode or "").strip() or None
 
         summary = personal_stats.champion_summary(
-            db, user.id, champion_name, normalized_role, normalized_mode
+            db, user.puuid, champion_name, normalized_role, normalized_mode
         )
         faced = personal_stats.opponents_faced_on_champion(
-            db, user.id, champion_name, normalized_role, normalized_mode
+            db, user.puuid, champion_name, normalized_role, normalized_mode
         )
         favorable = [m for m in faced if m["win_rate"] >= 50]
         unfavorable = [m for m in faced if m["win_rate"] < 50]

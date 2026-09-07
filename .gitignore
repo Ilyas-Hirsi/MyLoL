@@ -312,6 +312,9 @@ check_backend.py
 dump.rdb
 backend/dump.rdb
 
+# SQL migrations are applied to the database, not carried in the repo
+backend/migrations/
+
 # Documentation lives in the root README.md and nowhere else
 *.md
 !/README.md

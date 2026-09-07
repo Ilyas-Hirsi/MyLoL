@@ -4,7 +4,6 @@ import {
   UserLogin,
   AuthResponse,
   Match,
-  ChampionMastery,
   ChampionRecommendation,
   ChampionStats,
   DifficultMatchup,
@@ -66,11 +65,6 @@ const apiService = {
 
   async getMatchHistory(): Promise<Match[]> {
     const response: AxiosResponse<Match[]> = await api.get('/users/match-history');
-    return response.data;
-  },
-
-  async getChampionMastery(): Promise<ChampionMastery[]> {
-    const response: AxiosResponse<ChampionMastery[]> = await api.get('/users/champion-mastery');
     return response.data;
   },
 
