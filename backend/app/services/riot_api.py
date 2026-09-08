@@ -1,4 +1,4 @@
-﻿import requests
+import requests
 import time
 import threading
 from collections import deque
@@ -70,6 +70,42 @@ class RiotAPIService:
             logger.error(f"Request failed: {e}")
             return None
     
+    def resolve_account(self, riot_id: str, tag: str) -> tuple[Optional[str], str]:
+        """Look up a Riot account, reporting *why* a lookup failed.
+
+        `_make_request` collapses "no such account", "our API key is dead" and
+        "Riot is down" into a single None, which leaves the caller no choice but
+        to blame the player's spelling. Account entry is the one place that
+        distinction matters, so it reads the status code itself.
+
+        Returns (puuid, status) where status is one of:
+            ok, not_found, unauthorized, rate_limited, error
+        """
+        self._rate_limit()
+        url = f"{self.account_url}/riot/account/v1/accounts/by-riot-id/{riot_id}/{tag}/"
+        try:
+            response = requests.get(url, headers={"X-Riot-Token": self.api_key}, timeout=10)
+        except Exception as e:
+            logger.error(f"Account lookup failed to reach Riot: {e}")
+            return None, "error"
+
+        if response.status_code in (200, 209):
+            return response.json().get("puuid"), "ok"
+        if response.status_code == 404:
+            return None, "not_found"
+        if response.status_code in (401, 403):
+            logger.error(
+                "Riot rejected our API key (%s). Development keys expire every 24 hours.",
+                response.status_code,
+            )
+            return None, "unauthorized"
+        if response.status_code == 429:
+            logger.warning("Rate limited by Riot during account lookup.")
+            return None, "rate_limited"
+
+        logger.error(f"Account lookup error: {response.status_code} - {response.text}")
+        return None, "error"
+
     def get_puuid(self, riot_id: str, tag: str) -> Optional[str]:
         """Get PUUID from Riot ID and tag"""
         url = f"{self.account_url}/riot/account/v1/accounts/by-riot-id/{riot_id}/{tag}/"

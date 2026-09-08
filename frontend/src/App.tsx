@@ -5,7 +5,6 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider } from './contexts/AuthContext';
 import Layout from './components/Layout';
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import MatchupsPage from './pages/MatchupsPage';
 import ProfilePage from './pages/ProfilePage';
@@ -30,9 +29,8 @@ function App() {
         <AuthProvider>
           <Router>
             <Routes>
-              {/* Public routes */}
+              {/* Account entry. There is no separate sign-up. */}
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
               
               {/* Protected routes */}
               <Route path="/" element={

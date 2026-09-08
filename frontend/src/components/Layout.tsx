@@ -9,6 +9,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import { useAuth } from '../contexts/AuthContext';
 import { useRefreshUserData } from '../hooks/useApi';
 import { formatRelativeTime } from '../utils/helpers';
+import Mark from './Mark';
 import { color, font, radius, size, space } from '../theme/tokens';
 
 const NAV = [
@@ -18,20 +19,6 @@ const NAV = [
 ];
 
 const MOBILE_BAR_H = 48;
-
-/** The favicon glyph: a rank mark, three bars of descending width. */
-const Mark: React.FC = () => (
-  <Box
-    component="svg"
-    viewBox="0 0 32 32"
-    aria-hidden="true"
-    sx={{ width: 18, height: 18, flexShrink: 0, display: 'block' }}
-  >
-    <rect x="6" y="7" width="20" height="4" fill={color.gold} />
-    <rect x="6" y="14" width="13" height="4" fill={color.gold} />
-    <rect x="6" y="21" width="8" height="4" fill={color.gold} />
-  </Box>
-);
 
 /**
  * The rail.

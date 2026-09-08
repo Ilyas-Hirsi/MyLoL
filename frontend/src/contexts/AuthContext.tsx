@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, UserLogin, UserCreate, AuthContextType } from '../types';
+import { User, UserLogin, AuthContextType } from '../types';
 import apiService from '../services/api';
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -46,15 +46,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  const register = async (userData: UserCreate): Promise<void> => {
-    // No-op: registration removed. Perform login which will auto-create user.
-    const loginResponse = await apiService.login({ riot_id: userData.riot_id, tag: userData.tag });
-    localStorage.setItem('token', loginResponse.access_token);
-    setToken(loginResponse.access_token);
-    const profile = await apiService.getUserProfile();
-    setUser(profile);
-  };
-
   const logout = (): void => {
     localStorage.removeItem('token');
     setToken(null);
@@ -65,7 +56,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     user,
     token,
     login,
-    register,
     logout,
     isLoading,
     isAuthenticated,

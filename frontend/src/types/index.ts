@@ -8,11 +8,6 @@ export interface User {
   last_updated?: string;
 }
 
-export interface UserCreate {
-  riot_id: string;
-  tag: string;
-}
-
 export interface UserLogin {
   riot_id: string;
   tag: string;
@@ -198,17 +193,11 @@ export interface LoginFormData {
   tag: string;
 }
 
-export interface RegisterFormData {
-  riot_id: string;
-  tag: string;
-}
-
 // Context types
 export interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (credentials: UserLogin) => Promise<void>;
-  register: (userData: UserCreate) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
   isAuthenticated: boolean;
