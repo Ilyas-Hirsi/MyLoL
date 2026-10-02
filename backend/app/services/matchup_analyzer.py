@@ -1,4 +1,4 @@
-﻿from typing import List, Dict
+from typing import List, Dict
 from sqlalchemy.orm import Session
 from sqlalchemy import Integer
 from app.models.match import Match
@@ -13,14 +13,14 @@ class MatchupAnalyzer:
     def __init__(self):
         self.cache_ttl = settings.CACHE_MATCHUP_DATA_TTL
     
-    def analyze_difficult_matchups(self, db: Session, user_id: int, role: str = None, game_mode: str | None = None) -> List[Dict]:
+    def analyze_difficult_matchups(self, db: Session, user_puuid: str, role: str = None, game_mode: str | None = None) -> List[Dict]:
         """Find champions that give the player the most trouble.
         
         Returns matchups with win rate < 50% sorted by difficulty.
         """
         normalized_role = self._normalize_role(role) if role else None
         normalized_mode = (game_mode or '').strip() or None
-        cache_key = f"user:{user_id}:difficult_matchups:{normalized_role or 'all'}:{normalized_mode or 'all'}"
+        cache_key = f"user:{user_puuid}:difficult_matchups:{normalized_role or 'all'}:{normalized_mode or 'all'}"
         
         def _analyze():
             # Use database aggregation for much faster processing
@@ -37,7 +37,7 @@ class MatchupAnalyzer:
                 func.avg(Match.cs_per_min).label('avg_cs_per_min'),
                 func.avg(Match.damage_to_champs_per_min).label('avg_damage_per_min')
             ).filter(
-                Match.user_id == user_id,
+                Match.user_puuid == user_puuid,
                 Match.opponent_champion.isnot(None)  # Only matches with opponent data
             )
             
@@ -106,7 +106,7 @@ class MatchupAnalyzer:
         return role_mapping.get(role_upper, role_upper)
 
     
-    def analyze_matchup_details(self, db: Session, user_id: int, opponent_champion: str, role: str | None = None, game_mode: str | None = None) -> Dict:
+    def analyze_matchup_details(self, db: Session, user_puuid: str, opponent_champion: str, role: str | None = None, game_mode: str | None = None) -> Dict:
         """Get comprehensive stats for a specific opponent champion.
         
         Similar to u.gg's detailed matchup view - shows performance breakdown,
@@ -114,12 +114,12 @@ class MatchupAnalyzer:
         """
         normalized_role = self._normalize_role(role) if role else None
         normalized_mode = (game_mode or '').strip() or None
-        cache_key = f"user:{user_id}:matchup_details:{opponent_champion}:{normalized_role or 'all'}:{normalized_mode or 'all'}"
+        cache_key = f"user:{user_puuid}:matchup_details:{opponent_champion}:{normalized_role or 'all'}:{normalized_mode or 'all'}"
 
         def _compute():
             # Query matches against this specific opponent
             query = db.query(Match).filter(
-                Match.user_id == user_id,
+                Match.user_puuid == user_puuid,
                 Match.opponent_champion == opponent_champion
             )
             if normalized_role:
@@ -207,7 +207,7 @@ class MatchupAnalyzer:
                 # Which of the user's champions perform best into this opponent -
                 # i.e. what they should consider picking next time.
                 'best_champions': personal_stats.champions_vs_opponent(
-                    db, user_id, opponent_champion, normalized_role, normalized_mode
+                    db, user_puuid, opponent_champion, normalized_role, normalized_mode
                 ),
                 'recent_matches': recent,
             }
@@ -217,7 +217,7 @@ class MatchupAnalyzer:
 
     
     def get_champion_matchup_data(
-        self, db: Session, user_id: int, champion: str, opponent: str,
+        self, db: Session, user_puuid: str, champion: str, opponent: str,
         role: str | None = None, game_mode: str | None = None,
     ) -> Dict:
         """The user's head-to-head record playing `champion` into `opponent`.
@@ -228,13 +228,13 @@ class MatchupAnalyzer:
         normalized_role = self._normalize_role(role) if role else None
         normalized_mode = (game_mode or '').strip() or None
         cache_key = (
-            f"user:{user_id}:matchup:{champion}:{opponent}:"
+            f"user:{user_puuid}:matchup:{champion}:{opponent}:"
             f"{normalized_role or 'all'}:{normalized_mode or 'all'}"
         )
 
         def _get_matchup():
             games, wins = personal_stats.matchup_grid(
-                db, user_id, normalized_role, normalized_mode
+                db, user_puuid, normalized_role, normalized_mode
             ).get((champion, opponent), (0, 0))
 
             if games == 0:

@@ -5,7 +5,6 @@ import apiService from '../services/api';
 export const queryKeys = {
   userProfile: ['userProfile'] as const,
   matchHistory: ['matchHistory'] as const,
-  championMastery: ['championMastery'] as const,
   difficultMatchups: (role?: string) => ['difficultMatchups', role] as const,
   championRecommendations: (role?: string) => ['championRecommendations', role] as const,
   championCounters: (champion: string) => ['championCounters', champion] as const,
@@ -29,16 +28,6 @@ export const useMatchHistory = () => {
     enabled: !!localStorage.getItem('token'),
     staleTime: 5 * 60 * 1000, // 5 minutes - data is fresh for 5 minutes
     gcTime: 30 * 60 * 1000, // 30 minutes - keep in cache for 30 minutes
-  });
-};
-
-export const useChampionMastery = () => {
-  return useQuery({
-    queryKey: queryKeys.championMastery,
-    queryFn: apiService.getChampionMastery,
-    enabled: !!localStorage.getItem('token'),
-    staleTime: 10 * 60 * 1000, // 10 minutes - mastery changes less frequently
-    gcTime: 60 * 60 * 1000, // 60 minutes - keep in cache for 1 hour
   });
 };
 
@@ -116,7 +105,6 @@ export const useRefreshUserData = () => {
       // Invalidate all user-related queries
       queryClient.invalidateQueries({ queryKey: queryKeys.userProfile });
       queryClient.invalidateQueries({ queryKey: queryKeys.matchHistory });
-      queryClient.invalidateQueries({ queryKey: queryKeys.championMastery });
       queryClient.invalidateQueries({ queryKey: ['difficultMatchups'] });
       queryClient.invalidateQueries({ queryKey: ['championRecommendations'] });
     },

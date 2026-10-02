@@ -1,16 +1,11 @@
 // User types
 export interface User {
-  id: number;
+  // The PUUID is the identity; there is no surrogate id.
+  puuid: string;
   riot_id: string;
   tag: string;
-  puuid: string;
   created_at: string;
   last_updated?: string;
-}
-
-export interface UserCreate {
-  riot_id: string;
-  tag: string;
 }
 
 export interface UserLogin {
@@ -64,14 +59,6 @@ export interface MatchStats {
 }
 
 // Champion types
-export interface ChampionMastery {
-  champion_id: number;
-  champion_name: string;
-  champion_level: number;
-  champion_points: number;
-  last_played?: string;
-}
-
 export interface ChampionRecommendation {
   champion: string;
   mastery_points: number;
@@ -82,20 +69,33 @@ export interface ChampionRecommendation {
   reason: string;
 }
 
+export interface ChampionHeadToHead {
+  champion: string;
+  games: number;
+  wins: number;
+  losses: number;
+  win_rate: number;
+  /** Wilson lower bound on the win rate. The API names this `confidence`. */
+  confidence?: number;
+}
+
 export interface ChampionStats {
   champion: string;
+  games: number;
   win_rate: number;
+  /** Share of the user's own games on this champion, not a global pick rate. */
   pick_rate: number;
-  ban_rate: number;
-  tier: string;
-  role: string;
-  counters?: Array<{
-    champion: string;
-    win_rate: number;
-    games?: number;
-  }>;
-  strong_against?: Array<string | { champion: string; win_rate?: number }>;
-  weak_against?: Array<string | { champion: string; win_rate?: number }>;
+  avg_kda: {
+    kills: number;
+    deaths: number;
+    assists: number;
+  };
+  avg_cs_per_min: number;
+  avg_damage_per_min: number;
+  /** Duplicate of strong_against in the current API; prefer strong_against. */
+  counters?: ChampionHeadToHead[];
+  strong_against?: ChampionHeadToHead[];
+  weak_against?: ChampionHeadToHead[];
 }
 
 // Matchup types
@@ -150,6 +150,9 @@ export interface MatchupDetails {
     wins: number;
     losses: number;
     win_rate: number;
+    // Wilson-score lower bound the backend already computes; the old UI
+    // discarded it and showed bare percentages on 2-game samples.
+    confidence?: number;
   }>;
   recent_matches: Array<{
     match_id: string;
@@ -206,17 +209,11 @@ export interface LoginFormData {
   tag: string;
 }
 
-export interface RegisterFormData {
-  riot_id: string;
-  tag: string;
-}
-
 // Context types
 export interface AuthContextType {
   user: User | null;
   token: string | null;
   login: (credentials: UserLogin) => Promise<void>;
-  register: (userData: UserCreate) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
   isAuthenticated: boolean;

@@ -1,4 +1,4 @@
-﻿from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey
 from sqlalchemy.sql import func
 from app.utils.database import Base
 
@@ -7,7 +7,7 @@ class MatchupStats(Base):
     __tablename__ = "matchup_stats"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_puuid = Column(String(100), ForeignKey("users.puuid"), nullable=False, index=True)
     champion = Column(String(50), nullable=False)
     opponent_champion = Column(String(50), nullable=False)
     team_position = Column(String(20), nullable=False)

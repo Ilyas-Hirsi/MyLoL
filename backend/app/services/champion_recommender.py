@@ -14,7 +14,7 @@ class ChampionRecommender:
     def get_champion_recommendations(
         self,
         db: Session,
-        user_id: int,
+        user_puuid: str,
         difficult_matchups: List[str],
         role: str = None,
         game_mode: str | None = None,
@@ -29,20 +29,20 @@ class ChampionRecommender:
         normalized_role = self._normalize_role(role)
         normalized_mode = (game_mode or "").strip() or None
         cache_key = (
-            f"user:{user_id}:recommendations:{normalized_role or 'all'}:"
+            f"user:{user_puuid}:recommendations:{normalized_role or 'all'}:"
             f"{normalized_mode or 'all'}:{hash(tuple(sorted(difficult_matchups)))}"
         )
 
         def _get_recommendations():
             # Mastery gives us the champion pool plus points/level for display.
             mastery_data = db.query(ChampionMastery).filter(
-                ChampionMastery.user_id == user_id
+                ChampionMastery.user_puuid == user_puuid
             ).all()
             mastery_by_name = {m.champion_name: m for m in mastery_data}
 
             # One grouped query: (champion, opponent) -> (games, wins).
             grid = personal_stats.matchup_grid(
-                db, user_id, normalized_role, normalized_mode
+                db, user_puuid, normalized_role, normalized_mode
             )
             if not grid:
                 return []
@@ -116,7 +116,7 @@ class ChampionRecommender:
     def get_champion_counters(
         self,
         db: Session,
-        user_id: int,
+        user_puuid: str,
         champion: str,
         role: str | None = None,
         game_mode: str | None = None,
@@ -129,13 +129,13 @@ class ChampionRecommender:
         normalized_role = self._normalize_role(role)
         normalized_mode = (game_mode or "").strip() or None
         cache_key = (
-            f"user:{user_id}:counters:{champion}:"
+            f"user:{user_puuid}:counters:{champion}:"
             f"{normalized_role or 'all'}:{normalized_mode or 'all'}"
         )
 
         def _get_counters():
             return personal_stats.champions_vs_opponent(
-                db, user_id, champion, normalized_role, normalized_mode
+                db, user_puuid, champion, normalized_role, normalized_mode
             )
 
         return cache.get_or_set(cache_key, _get_counters, self.cache_ttl)

@@ -1,4 +1,4 @@
-﻿from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings
 from typing import Optional, Union
 
 
@@ -28,9 +28,17 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # Server Configuration
+    # Comma-separated origins allowed to call the API from a browser.
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
+    # Failed account lookups allowed per client IP per window, to keep the one
+    # unauthenticated endpoint from being used to enumerate Riot IDs or to burn
+    # the server's Riot API quota.
+    LOGIN_RATE_LIMIT: int = 10
+    LOGIN_RATE_WINDOW_SECONDS: float = 60.0
+
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
-    DEBUG: Union[bool, str] = True
+    DEBUG: Union[bool, str] = False  # opt in locally; never default-on in a deployment
     
     # Cache TTL (in seconds)
     CACHE_MATCH_HISTORY_TTL: int = 3600
@@ -50,6 +58,14 @@ class Settings(BaseSettings):
         if not self.DATABASE_URL:
             self.DATABASE_URL = f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
     
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    @property
+    def debug_enabled(self) -> bool:
+        return str(self.DEBUG).strip().lower() in ("1", "true", "yes", "on")
+
     class Config:
         env_file = ".env"
         case_sensitive = True

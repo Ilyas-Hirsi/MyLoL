@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from fastapi import HTTPException, Security
@@ -33,7 +33,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Security(
     """Get current user from JWT token"""
     token = credentials.credentials
     payload = decode_token(token)
-    user_id = payload.get("sub")
-    if user_id is None:
+    puuid = payload.get("sub")
+    if puuid is None:
         raise HTTPException(status_code=401, detail="Invalid token")
-    return user_id
+    return puuid

@@ -1,376 +1,346 @@
 import React, { useState } from 'react';
-import {
-  Box, Card, CardContent, Typography, Grid,
-  FormControl, InputLabel, Select, MenuItem,
-  CircularProgress, Alert, Chip, Table,
-  TableBody, TableCell, TableContainer, TableHead,
-  TableRow, Paper, Button, Dialog,
-  DialogTitle, DialogContent, Divider,
-} from '@mui/material';
-import { useDifficultMatchupsFull, useMatchupDetails } from '../hooks/useApi';
-import { formatWinRate, formatKDA, getDifficultyColor } from '../utils/helpers';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import MenuItem from '@mui/material/MenuItem';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import { useDifficultMatchupsFull } from '../hooks/useApi';
+import { formatKDA } from '../utils/helpers';
+import { color, size, space } from '../theme/tokens';
+import PageHeader from '../components/PageHeader';
+import SectionHeading from '../components/SectionHeading';
+import LoadingBar from '../components/LoadingBar';
+import EmptyState from '../components/EmptyState';
+import RecordBar from '../components/RecordBar';
+import MatchupDetail from '../components/MatchupDetail';
+import ChampionRecord from '../components/ChampionRecord';
+
+const ROLES = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'];
+const GAME_MODES = [
+  'Ranked Solo/Duo',
+  'Ranked Flex',
+  'ARAM',
+  'Clash',
+  'URF',
+  'One for All',
+  'Nexus Blitz',
+  'Ultimate Spellbook',
+  'Arena',
+];
+
+/** Below this many games a win rate is noise, and the row says so. */
+const THIN_SAMPLE = 5;
+
+interface Matchup {
+  champion: string;
+  games_played: number;
+  wins: number;
+  losses: number;
+  win_rate: number;
+  avg_kda: { kills: number; deaths: number; assists: number };
+  avg_cs_per_min: number;
+  avg_damage_per_min: number;
+}
+
+type View = 'opponents' | 'champions';
 
 const MatchupsPage: React.FC = () => {
-  // State management
-  const [selectedRole, setSelectedRole] = useState<string>('');
-  const [selectedChampion, setSelectedChampion] = useState<string>('');
-  const [detailsOpen, setDetailsOpen] = useState<boolean>(false);
-  const [selectedGameMode, setSelectedGameMode] = useState<string>('');
+  const [view, setView] = useState<View>('opponents');
+  const [champion, setChampion] = useState('');
+  const [role, setRole] = useState('');
+  const [gameMode, setGameMode] = useState('');
+  const [opponent, setOpponent] = useState('');
+  const [detailOpen, setDetailOpen] = useState(false);
 
-  // API hooks
-  const { data: difficultMatchupsResponse, isLoading: matchupsLoading, error: matchupsError } =
-    useDifficultMatchupsFull(selectedRole, selectedGameMode);
+  const { data, isLoading, isFetching, error } = useDifficultMatchupsFull(role, gameMode);
 
-  const { data: matchupDetails, isLoading: detailsLoading } =
-    useMatchupDetails(selectedChampion, selectedRole || undefined, selectedGameMode || undefined);
+  const matchups: Matchup[] = data?.difficult_matchups ?? [];
+  const analysed: number = data?.total_analyzed ?? 0;
 
-  // Extract matchups data
-  const difficultMatchups = difficultMatchupsResponse?.difficult_matchups || [];
-
-  // Filter options
-  const roles = ['TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT'];
-  const gameModes = [
-    'Ranked Solo/Duo', 'Ranked Flex', 'ARAM', 'Clash',
-    'URF', 'One for All', 'Nexus Blitz', 'Ultimate Spellbook', 'Arena',
-  ];
-
-  // Event handlers
-  const handleRoleChange = (event: any) => setSelectedRole(event.target.value);
-  const handleGameModeChange = (event: any) => setSelectedGameMode(event.target.value);
-  const handleChampionSelect = (champion: string) => {
-    setSelectedChampion(champion);
-    setDetailsOpen(true);
+  const openDetail = (champion: string) => {
+    setOpponent(champion);
+    setDetailOpen(true);
   };
-  const closeDetails = () => setDetailsOpen(false);
 
-  // Loading and error states
-  if (matchupsLoading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress size={60} />
-      </Box>
-    );
-  }
-
-  if (matchupsError) {
-    return (
-      <Alert severity="error">
-        Failed to load matchup data. Please try again.
-      </Alert>
-    );
-  }
+  const filtersApplied = Boolean(role || gameMode);
 
   return (
-    <Box>
-      <Typography variant="h4" gutterBottom>
-        Matchup Analysis
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 4 }}>
-        Analyze your most difficult matchups and find ways to improve
-      </Typography>
+    <>
+      {isFetching && <LoadingBar label="Loading matchups" />}
 
-      {/* Filter Controls */}
-      <Card sx={{ mb: 3 }}>
-        <CardContent>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-            <FormControl sx={{ minWidth: 220 }}>
-              <InputLabel>Filter by Role</InputLabel>
-              <Select
-                value={selectedRole}
-                label="Filter by Role"
-                onChange={handleRoleChange}
-              >
-                <MenuItem value="">
-                  <em>All Roles</em>
-                </MenuItem>
-                {roles.map((role) => (
-                  <MenuItem key={role} value={role}>
-                    {role}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+      <PageHeader
+        title="Matchups"
+        description={
+          view === 'opponents'
+            ? 'Opponents you lose to more than you beat, ranked by how badly.'
+            : 'Your record on one champion, and the opponents it wins and loses into.'
+        }
+      />
 
-            <FormControl sx={{ minWidth: 260 }}>
-              <InputLabel>Filter by Game Mode</InputLabel>
-              <Select
-                value={selectedGameMode}
-                label="Filter by Game Mode"
-                onChange={handleGameModeChange}
-              >
-                <MenuItem value="">
-                  <em>All Modes</em>
-                </MenuItem>
-                {gameModes.map((mode) => (
-                  <MenuItem key={mode} value={mode}>
-                    {mode}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
+      {/* The same question from two sides, so it is one screen with two views
+          rather than two screens. A full tab pattern: roles, ids, and the
+          arrow-key navigation the pattern requires — half of it would be worse
+          than none, because it would promise keyboard behaviour it lacks. */}
+      <Box
+        role="tablist"
+        aria-label="Matchup view"
+        onKeyDown={(e) => {
+          if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+          e.preventDefault();
+          const next: View = view === 'opponents' ? 'champions' : 'opponents';
+          setView(next);
+          document.getElementById(`tab-${next}`)?.focus();
+        }}
+        sx={{ display: 'flex', gap: `${space[5]}px`, marginBottom: `${space[5]}px` }}
+      >
+        {([
+          ['opponents', 'By opponent'],
+          ['champions', 'By your champion'],
+        ] as Array<[View, string]>).map(([key, label]) => (
+          <Box
+            key={key}
+            component="button"
+            type="button"
+            role="tab"
+            id={`tab-${key}`}
+            aria-selected={view === key}
+            aria-controls={`panel-${key}`}
+            tabIndex={view === key ? 0 : -1}
+            onClick={() => setView(key)}
+            sx={{
+              background: 'none',
+              border: 0,
+              padding: 0,
+              paddingBottom: `${space[2]}px`,
+              font: 'inherit',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              color: view === key ? color.textHi : color.textLo,
+              borderBottom: `2px solid ${view === key ? color.gold : 'transparent'}`,
+              transition: 'color var(--motion-control), border-color var(--motion-control)',
+              '&:hover': { color: color.textHi },
+            }}
+          >
+            {label}
           </Box>
-        </CardContent>
-      </Card>
+        ))}
+      </Box>
 
-      <Grid container spacing={3}>
-        {/* Difficult Matchups Chart removed per requirements */}
+      <Box role="tabpanel" id="panel-champions" aria-labelledby="tab-champions" hidden={view !== 'champions'}>
+        {view === 'champions' && <ChampionRecord champion={champion} onChange={setChampion} />}
+      </Box>
 
-        {/* Summary Statistics */}
-        <Grid item xs={12} md={4}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Summary
-              </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Total Analyzed
-                  </Typography>
-                  <Typography variant="h4">
-                    {difficultMatchupsResponse?.total_analyzed || 0}
-                  </Typography>
-                </Paper>
-                <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Difficult Matchups
-                  </Typography>
-                  <Typography variant="h4">
-                    {difficultMatchupsResponse?.difficult_matchups?.length || 0}
-                  </Typography>
-                </Paper>
-                <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Role Filter
-                  </Typography>
-                  <Typography variant="h6">
-                    {selectedRole || 'All Roles'}
-                  </Typography>
-                </Paper>
-                <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    Game Mode Filter
-                  </Typography>
-                  <Typography variant="h6">
-                    {selectedGameMode || 'All Modes'}
-                  </Typography>
-                </Paper>
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
+      <Box role="tabpanel" id="panel-opponents" aria-labelledby="tab-opponents" hidden={view !== 'opponents'}>
+      {view === 'opponents' && (
+      <>
+      {/* A toolbar, not a card. The old page put these two selects in a Card and
+          then repeated their values below as "Role Filter: All Roles" tiles. */}
+      <Box
+        component="section"
+        aria-label="Filters"
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: `${space[3]}px`,
+          paddingBottom: `${space[5]}px`,
+        }}
+      >
+        <TextField
+          select
+          label="Role"
+          value={role}
+          onChange={(e) => setRole(e.target.value)}
+          size="small"
+          sx={{ minWidth: 160 }}
+        >
+          <MenuItem value="">All roles</MenuItem>
+          {ROLES.map((r) => (
+            <MenuItem key={r} value={r}>
+              {r}
+            </MenuItem>
+          ))}
+        </TextField>
 
-        {/* Matchup Data Table */}
-        <Grid item xs={12}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                Detailed Matchup Statistics
-              </Typography>
-              <TableContainer component={Paper}>
-                <Table>
-                  <TableHead>
-                    <TableRow>
-                      <TableCell>Champion</TableCell>
-                      <TableCell align="right">Games</TableCell>
-                      <TableCell align="right">Wins</TableCell>
-                      <TableCell align="right">Losses</TableCell>
-                      <TableCell align="right">Win Rate</TableCell>
-                      <TableCell align="right">Avg KDA</TableCell>
-                      <TableCell align="right">CS/Min</TableCell>
-                      <TableCell align="right">Damage/Min</TableCell>
-                      <TableCell align="center">Actions</TableCell>
+        <TextField
+          select
+          label="Game mode"
+          value={gameMode}
+          onChange={(e) => setGameMode(e.target.value)}
+          size="small"
+          sx={{ minWidth: 200 }}
+        >
+          <MenuItem value="">All modes</MenuItem>
+          {GAME_MODES.map((m) => (
+            <MenuItem key={m} value={m}>
+              {m}
+            </MenuItem>
+          ))}
+        </TextField>
+
+        {filtersApplied && (
+          <Button
+            variant="text"
+            onClick={() => {
+              setRole('');
+              setGameMode('');
+            }}
+          >
+            Clear filters
+          </Button>
+        )}
+      </Box>
+
+      <Box component="section">
+        <SectionHeading
+          trailing={
+            isLoading
+              ? 'Loading…'
+              : `${matchups.length} of ${analysed} opponents analysed`
+          }
+        >
+          Losing matchups
+        </SectionHeading>
+
+        {error && (
+          <Typography role="alert" variant="body2" sx={{ color: color.loss }}>
+            Could not load matchups. Check the backend is running, then reload.
+          </Typography>
+        )}
+
+        {!error && !isLoading && matchups.length === 0 && (
+          <EmptyState
+            title="No losing matchups in this filter."
+            detail={
+              filtersApplied
+                ? 'Either you have too few games under these filters, or you are winning every matchup in them.'
+                : 'Once enough games are recorded, the opponents beating you will be listed here.'
+            }
+            action={
+              filtersApplied ? (
+                <Button
+                  variant="outlined"
+                  onClick={() => {
+                    setRole('');
+                    setGameMode('');
+                  }}
+                >
+                  Clear filters
+                </Button>
+              ) : undefined
+            }
+          />
+        )}
+
+        {matchups.length > 0 && (
+          // Wide data scrolls inside its own container; the page never scrolls
+          // sideways.
+          <Box sx={{ overflowX: 'auto' }}>
+            <Table sx={{ minWidth: 720, tableLayout: 'fixed' }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Opponent</TableCell>
+                  <TableCell align="right" sx={{ width: 76 }}>Record</TableCell>
+                  <TableCell sx={{ width: 210 }}>Win rate</TableCell>
+                  <TableCell align="right" sx={{ width: 76 }}>KDA</TableCell>
+                  <TableCell align="right" sx={{ width: 84 }}>CS/min</TableCell>
+                  <TableCell align="right" sx={{ width: 92 }}>Dmg/min</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {matchups.map((m) => {
+                  const thin = m.games_played < THIN_SAMPLE;
+                  return (
+                    <TableRow
+                      key={m.champion}
+                      onClick={() => openDetail(m.champion)}
+                      sx={{
+                        cursor: 'pointer',
+                        height: size.row,
+                        transition: 'background-color var(--motion-control)',
+                        '&:hover': { backgroundColor: color.ink700 },
+                        '&:focus-within': { backgroundColor: color.ink700 },
+                      }}
+                    >
+                      <TableCell>
+                        {/* A real button carries the keyboard affordance and the
+                            accessible name; the row click is just a convenience
+                            for pointers, and the button's click bubbles to it. */}
+                        <Box
+                          component="button"
+                          type="button"
+                          aria-label={`Your record against ${m.champion}`}
+                          sx={{
+                            background: 'none',
+                            border: 0,
+                            padding: 0,
+                            font: 'inherit',
+                            fontWeight: 500,
+                            color: color.textHi,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {m.champion}
+                        </Box>
+                      </TableCell>
+
+                      {/* W–L is the game count: 0–4 is four games. Printing
+                          "4g" beside it said the same thing twice. */}
+                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                        <Box component="span" sx={{ color: color.win }}>{m.wins}</Box>
+                        <Box component="span" sx={{ color: color.textLo }}>–</Box>
+                        <Box component="span" sx={{ color: color.loss }}>{m.losses}</Box>
+                      </TableCell>
+
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: `${space[2]}px` }}>
+                          <Box component="span" sx={{ color: color.textHi, width: 36, textAlign: 'right' }}>
+                            {m.win_rate.toFixed(0)}%
+                          </Box>
+                          <RecordBar winRate={m.win_rate} />
+                          {thin && (
+                            <Typography variant="caption" sx={{ color: color.textLo, whiteSpace: 'nowrap' }}>
+                              thin sample
+                            </Typography>
+                          )}
+                        </Box>
+                      </TableCell>
+
+                      <TableCell align="right">
+                        {formatKDA(m.avg_kda.kills, m.avg_kda.deaths, m.avg_kda.assists)}
+                      </TableCell>
+                      <TableCell align="right">{m.avg_cs_per_min.toFixed(1)}</TableCell>
+                      <TableCell align="right">{m.avg_damage_per_min.toFixed(0)}</TableCell>
                     </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {difficultMatchups?.map((matchup: any) => (
-                      <TableRow key={matchup.champion}>
-                        <TableCell component="th" scope="row">
-                          <Typography variant="subtitle1" fontWeight="bold">
-                            {matchup.champion}
-                          </Typography>
-                        </TableCell>
-                        <TableCell align="right">{matchup.games_played}</TableCell>
-                        <TableCell align="right">{matchup.wins}</TableCell>
-                        <TableCell align="right">{matchup.losses}</TableCell>
-                        <TableCell align="right">
-                          <Chip
-                            label={formatWinRate(matchup.wins, matchup.games_played)}
-                            size="small"
-                            sx={{
-                              bgcolor: getDifficultyColor(matchup.win_rate),
-                              color: 'white',
-                            }}
-                          />
-                        </TableCell>
-                        <TableCell align="right">
-                          {formatKDA(matchup.avg_kda.kills, matchup.avg_kda.deaths, matchup.avg_kda.assists)}
-                        </TableCell>
-                        <TableCell align="right">{matchup.avg_cs_per_min.toFixed(1)}</TableCell>
-                        <TableCell align="right">{matchup.avg_damage_per_min.toFixed(0)}</TableCell>
-                        <TableCell align="center">
-                          <Button
-                            size="small"
-                            variant="outlined"
-                            onClick={() => handleChampionSelect(matchup.champion)}
-                          >
-                            Analyze
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        </Grid>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Box>
+        )}
+      </Box>
 
-        {/* Detailed Analysis Modal */}
-        <Dialog open={detailsOpen} onClose={closeDetails} fullWidth maxWidth="md">
-          <DialogTitle>
-            Matchup Details vs {selectedChampion}
-          </DialogTitle>
-          <DialogContent dividers>
-            {detailsLoading ? (
-              <Box display="flex" justifyContent="center" p={3}>
-                <CircularProgress />
-              </Box>
-            ) : matchupDetails ? (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={3}>
-                    <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                      <Typography variant="body2" color="text.secondary">Games</Typography>
-                      <Typography variant="h5">{matchupDetails.games}</Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                      <Typography variant="body2" color="text.secondary">Win Rate</Typography>
-                      <Typography variant="h5">{matchupDetails.win_rate}%</Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                      <Typography variant="body2" color="text.secondary">Avg KDA</Typography>
-                      <Typography variant="h6">{formatKDA(matchupDetails.avg_kda.kills, matchupDetails.avg_kda.deaths, matchupDetails.avg_kda.assists)}</Typography>
-                    </Paper>
-                  </Grid>
-                  <Grid item xs={12} md={3}>
-                    <Paper sx={{ p: 2, bgcolor: 'background.default' }}>
-                      <Typography variant="body2" color="text.secondary">CS / Min</Typography>
-                      <Typography variant="h5">{matchupDetails.avg_cs_per_min}</Typography>
-                    </Paper>
-                  </Grid>
-                </Grid>
+      </>
+      )}
+      </Box>
 
-                <Divider />
-                <Typography variant="subtitle1">Role & Mode Distribution</Typography>
-                <Grid container spacing={2}>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>By Role</Typography>
-                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      {Object.entries(matchupDetails.role_distribution).map(([role, count]) => (
-                        <Chip key={role} label={`${role}: ${count}`} size="small" />
-                      ))}
-                    </Box>
-                  </Grid>
-                  <Grid item xs={12} md={6}>
-                    <Typography variant="body2" color="text.secondary" gutterBottom>By Game Mode</Typography>
-                    <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                      {Object.entries(matchupDetails.game_mode_distribution).map(([mode, count]) => (
-                        <Chip key={mode} label={`${mode}: ${count}`} size="small" />
-                      ))}
-                    </Box>
-                  </Grid>
-                </Grid>
-
-                <Divider />
-                <Typography variant="subtitle1">
-                  Your Best Champions vs {selectedChampion}
-                </Typography>
-                {matchupDetails.best_champions && matchupDetails.best_champions.length > 0 ? (
-                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                    {matchupDetails.best_champions.map((champ) => (
-                      <Paper
-                        key={champ.champion}
-                        sx={{
-                          p: 1.5,
-                          bgcolor: 'background.default',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'center',
-                          minWidth: 120,
-                        }}
-                      >
-                        <Typography variant="subtitle2" fontWeight="bold">
-                          {champ.champion}
-                        </Typography>
-                        <Chip
-                          label={`${champ.win_rate}%`}
-                          size="small"
-                          sx={{ my: 0.5, bgcolor: getDifficultyColor(champ.win_rate), color: 'white' }}
-                        />
-                        <Typography variant="caption" color="text.secondary">
-                          {champ.wins}W / {champ.losses}L
-                        </Typography>
-                      </Paper>
-                    ))}
-                  </Box>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    Not enough games on other champions against {selectedChampion} yet.
-                  </Typography>
-                )}
-
-                <Divider />
-                <Typography variant="subtitle1">Recent Match History</Typography>
-                <TableContainer component={Paper}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Date</TableCell>
-                        <TableCell>Champion</TableCell>
-                        <TableCell>Win</TableCell>
-                        <TableCell align="right">K / D / A</TableCell>
-                        <TableCell align="right">CS/Min</TableCell>
-                        <TableCell align="right">Dmg/Min</TableCell>
-                        <TableCell align="right">Duration</TableCell>
-                        <TableCell>Role</TableCell>
-                        <TableCell>Mode</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {matchupDetails.recent_matches.map((m) => (
-                        <TableRow key={m.match_id}>
-                          <TableCell>{m.date ? new Date(m.date).toLocaleDateString() : '-'}</TableCell>
-                          <TableCell>{m.champion}</TableCell>
-                          <TableCell>
-                            <Chip label={m.win ? 'Win' : 'Loss'} color={m.win ? 'success' : 'error'} size="small" />
-                          </TableCell>
-                          <TableCell align="right">{`${m.kda.kills} / ${m.kda.deaths} / ${m.kda.assists}`}</TableCell>
-                          <TableCell align="right">{m.cs_per_min}</TableCell>
-                          <TableCell align="right">{m.damage_to_champs_per_min}</TableCell>
-                          <TableCell align="right">{m.game_duration_min}m</TableCell>
-                          <TableCell>{m.role || '-'}</TableCell>
-                          <TableCell>{m.game_mode || '-'}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </Box>
-            ) : (
-              <Typography color="text.secondary">No details available.</Typography>
-            )}
-          </DialogContent>
-        </Dialog>
-      </Grid>
-    </Box>
+      {opponent && (
+        <MatchupDetail
+          opponent={opponent}
+          open={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          role={role || undefined}
+          gameMode={gameMode || undefined}
+        />
+      )}
+    </>
   );
 };
 
 export default MatchupsPage;
-
-

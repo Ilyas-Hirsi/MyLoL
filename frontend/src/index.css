@@ -1,33 +1,29 @@
-:root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+/*
+ * Base document styling only.
+ *
+ * Design tokens live in src/theme/tokens.ts and reach CSS as custom properties
+ * emitted by the MUI theme. The one literal below is deliberate: it paints the
+ * page ground before React mounts, so there is no white flash on load.
+ */
 
+html {
+  background-color: #0e1116; /* keep in step with tokens.color.ink900 */
   color-scheme: dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #0a0a0a;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
   -webkit-text-size-adjust: 100%;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
   min-height: 100vh;
+  text-rendering: optimizeLegibility;
 }
 
 #root {
-  width: 100%;
-  margin: 0 auto;
-  text-align: left;
-}
-
-* {
-  box-sizing: border-box;
+  min-height: 100vh;
 }

@@ -1,4 +1,4 @@
-﻿from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.utils.database import Base
@@ -8,7 +8,7 @@ class ChampionMastery(Base):
     __tablename__ = "champion_mastery"
     
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_puuid = Column(String(100), ForeignKey("users.puuid"), nullable=False, index=True)
     champion_id = Column(Integer, nullable=False)
     champion_name = Column(String(50), nullable=False)
     champion_level = Column(Integer, nullable=False)

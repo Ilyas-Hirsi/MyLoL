@@ -312,6 +312,13 @@ check_backend.py
 dump.rdb
 backend/dump.rdb
 
+# Documentation lives in the root README.md and nowhere else
+*.md
+!/README.md
+
+# Root npm stub (no package.json at the repo root)
+/package-lock.json
+
 # Frontend build artifacts and dependencies
 frontend/node_modules/
 frontend/.next/
