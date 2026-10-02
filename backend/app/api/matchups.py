@@ -53,9 +53,13 @@ async def get_difficult_matchups(
         
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Difficult matchups error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to analyze difficult matchups: {str(e)}")
+    except HTTPException:
+        # Deliberate 4xx responses must not be swallowed and reissued
+        # as a 500 carrying their own text back to the client.
+        raise
+    except Exception:
+        logger.exception("Difficult matchups error")
+        raise HTTPException(status_code=500, detail="Failed to analyze difficult matchups")
 
 
 @router.get("/champion/{champion_name}")
@@ -85,9 +89,13 @@ async def get_champion_matchup_data(
         }
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Champion matchup data error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get champion matchup data: {str(e)}")
+    except HTTPException:
+        # Deliberate 4xx responses must not be swallowed and reissued
+        # as a 500 carrying their own text back to the client.
+        raise
+    except Exception:
+        logger.exception("Champion matchup data error")
+        raise HTTPException(status_code=500, detail="Failed to get champion matchup data")
 
 
 @router.get("/vs/{champion1}/{champion2}")
@@ -112,9 +120,13 @@ async def get_head_to_head_matchup(
         }
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Head-to-head matchup error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get matchup data: {str(e)}")
+    except HTTPException:
+        # Deliberate 4xx responses must not be swallowed and reissued
+        # as a 500 carrying their own text back to the client.
+        raise
+    except Exception:
+        logger.exception("Head-to-head matchup error")
+        raise HTTPException(status_code=500, detail="Failed to get matchup data")
 
 
 @router.get("/timeline/{opponent}")
@@ -134,9 +146,13 @@ async def get_matchup_timeline(
         )
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Matchup timeline error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get matchup timeline: {str(e)}")
+    except HTTPException:
+        # Deliberate 4xx responses must not be swallowed and reissued
+        # as a 500 carrying their own text back to the client.
+        raise
+    except Exception:
+        logger.exception("Matchup timeline error")
+        raise HTTPException(status_code=500, detail="Failed to get matchup timeline")
 
 
 @router.get("/details/{opponent}")
@@ -157,6 +173,10 @@ async def get_matchup_details(
         return details
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Matchup details error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get matchup details: {str(e)}")
+    except HTTPException:
+        # Deliberate 4xx responses must not be swallowed and reissued
+        # as a 500 carrying their own text back to the client.
+        raise
+    except Exception:
+        logger.exception("Matchup details error")
+        raise HTTPException(status_code=500, detail="Failed to get matchup details")

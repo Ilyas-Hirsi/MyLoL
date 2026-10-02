@@ -45,9 +45,13 @@ async def get_user_profile(current_user: str = Depends(get_current_user), db: Se
             created_at=user.created_at.isoformat(),
             last_updated=user.last_updated.isoformat() if user.last_updated else None
         )
-    except Exception as e:
-        logger.error(f"Profile error: {e}")
-        raise HTTPException(status_code=500, detail=f"Profile fetch failed: {str(e)}")
+    except HTTPException:
+        # Deliberate 4xx responses must not be swallowed and reissued
+        # as a 500 carrying their own text back to the client.
+        raise
+    except Exception:
+        logger.exception("Profile error")
+        raise HTTPException(status_code=500, detail="Profile fetch failed")
 
 @router.get("/match-history")
 async def get_match_history(
@@ -57,7 +61,7 @@ async def get_match_history(
     limit: int = 200
 ):
     """Get user's match history from Riot API and database with caching"""
-    logger.debug(f"Match history endpoint called for user {current_user}")
+    logger.debug("Match history endpoint called")
     
     try:
         user = db.query(User).filter(User.puuid == current_user).first()
@@ -163,14 +167,18 @@ async def get_match_history(
         logger.debug(f"Returning {len(formatted_matches)} matches from database")
         return formatted_matches
         
-    except Exception as e:
-        logger.error(f"Match history error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch match history: {str(e)}")
+    except HTTPException:
+        # Deliberate 4xx responses must not be swallowed and reissued
+        # as a 500 carrying their own text back to the client.
+        raise
+    except Exception:
+        logger.exception("Match history error")
+        raise HTTPException(status_code=500, detail="Failed to fetch match history")
 
 @router.get("/champion-mastery")
 async def get_champion_mastery(current_user: str = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get user's champion mastery data from Riot API and database with caching"""
-    logger.debug(f"Champion mastery endpoint called for user {current_user}")
+    logger.debug("Champion mastery endpoint called")
     
     try:
         user = db.query(User).filter(User.puuid == current_user).first()
@@ -224,9 +232,13 @@ async def get_champion_mastery(current_user: str = Depends(get_current_user), db
         logger.debug(f"Returning {len(formatted_mastery)} champion masteries from database")
         return formatted_mastery
         
-    except Exception as e:
-        logger.error(f"Champion mastery error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to fetch champion mastery: {str(e)}")
+    except HTTPException:
+        # Deliberate 4xx responses must not be swallowed and reissued
+        # as a 500 carrying their own text back to the client.
+        raise
+    except Exception:
+        logger.exception("Champion mastery error")
+        raise HTTPException(status_code=500, detail="Failed to fetch champion mastery")
 
 @router.post("/refresh-data")
 async def refresh_user_data(
@@ -235,7 +247,7 @@ async def refresh_user_data(
     db: Session = Depends(get_db)
 ):
     """Force refresh user data from Riot API"""
-    logger.debug(f"Refresh data endpoint called for user {current_user}")
+    logger.debug("Refresh data endpoint called")
     
     try:
         user = db.query(User).filter(User.puuid == current_user).first()
@@ -262,9 +274,13 @@ async def refresh_user_data(
             "status": "success"
         }
         
-    except Exception as e:
-        logger.error(f"Refresh data error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to refresh user data: {str(e)}")
+    except HTTPException:
+        # Deliberate 4xx responses must not be swallowed and reissued
+        # as a 500 carrying their own text back to the client.
+        raise
+    except Exception:
+        logger.exception("Refresh data error")
+        raise HTTPException(status_code=500, detail="Failed to refresh user data")
 
 # Helper functions for fetching and storing data
 async def _fetch_and_store_matches(db: Session, user: User):

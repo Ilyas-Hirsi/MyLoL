@@ -54,9 +54,13 @@ async def get_champion_recommendations(
             "game_mode_filter": game_mode
         }
         
-    except Exception as e:
-        logger.error(f"Champion recommendations error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get champion recommendations: {str(e)}")
+    except HTTPException:
+        # Deliberate 4xx responses must not be swallowed and reissued
+        # as a 500 carrying their own text back to the client.
+        raise
+    except Exception:
+        logger.exception("Champion recommendations error")
+        raise HTTPException(status_code=500, detail="Failed to get champion recommendations")
 
 
 @router.get("/counters/{champion_name}")
@@ -85,9 +89,13 @@ async def get_champion_counters(
         }
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Champion counters error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get champion counters: {str(e)}")
+    except HTTPException:
+        # Deliberate 4xx responses must not be swallowed and reissued
+        # as a 500 carrying their own text back to the client.
+        raise
+    except Exception:
+        logger.exception("Champion counters error")
+        raise HTTPException(status_code=500, detail="Failed to get champion counters")
 
 
 @router.get("/stats/{champion_name}")
@@ -136,6 +144,10 @@ async def get_champion_stats(
         }
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Champion stats error: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get champion stats: {str(e)}")
+    except HTTPException:
+        # Deliberate 4xx responses must not be swallowed and reissued
+        # as a 500 carrying their own text back to the client.
+        raise
+    except Exception:
+        logger.exception("Champion stats error")
+        raise HTTPException(status_code=500, detail="Failed to get champion stats")
