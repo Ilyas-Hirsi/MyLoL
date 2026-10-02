@@ -69,20 +69,33 @@ export interface ChampionRecommendation {
   reason: string;
 }
 
+export interface ChampionHeadToHead {
+  champion: string;
+  games: number;
+  wins: number;
+  losses: number;
+  win_rate: number;
+  /** Wilson lower bound on the win rate. The API names this `confidence`. */
+  confidence?: number;
+}
+
 export interface ChampionStats {
   champion: string;
+  games: number;
   win_rate: number;
+  /** Share of the user's own games on this champion, not a global pick rate. */
   pick_rate: number;
-  ban_rate: number;
-  tier: string;
-  role: string;
-  counters?: Array<{
-    champion: string;
-    win_rate: number;
-    games?: number;
-  }>;
-  strong_against?: Array<string | { champion: string; win_rate?: number }>;
-  weak_against?: Array<string | { champion: string; win_rate?: number }>;
+  avg_kda: {
+    kills: number;
+    deaths: number;
+    assists: number;
+  };
+  avg_cs_per_min: number;
+  avg_damage_per_min: number;
+  /** Duplicate of strong_against in the current API; prefer strong_against. */
+  counters?: ChampionHeadToHead[];
+  strong_against?: ChampionHeadToHead[];
+  weak_against?: ChampionHeadToHead[];
 }
 
 // Matchup types
@@ -137,6 +150,9 @@ export interface MatchupDetails {
     wins: number;
     losses: number;
     win_rate: number;
+    // Wilson-score lower bound the backend already computes; the old UI
+    // discarded it and showed bare percentages on 2-game samples.
+    confidence?: number;
   }>;
   recent_matches: Array<{
     match_id: string;
